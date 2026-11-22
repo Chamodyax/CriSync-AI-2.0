@@ -38,8 +38,15 @@ public class AppUser : BaseEntity
     public string InvitedByUserName { get; set; } = string.Empty;
     public string InvitationCode { get; set; } = string.Empty;
     public string ProfilePhotoUrl { get; set; } = string.Empty;
-    public DateTime? LastPasswordResetUtc { get; set; }
-    public string LegacySecurityStamp { get; set; } = string.Empty;
+    public bool QuickUnlockEnabled { get; set; }
+    public string QuickUnlockMode { get; set; } = string.Empty;
+    public string QuickUnlockSecretHash { get; set; } = string.Empty;
+    public string QuickUnlockSecretSalt { get; set; } = string.Empty;
+    public string QuickUnlockDeviceTokenHash { get; set; } = string.Empty;
+    public string QuickUnlockDeviceTokenSalt { get; set; } = string.Empty;
+    public string QuickUnlockBiometricCredentialId { get; set; } = string.Empty;
+    public int QuickUnlockFailedAttempts { get; set; }
+    public string QuickUnlockTrustedDevicesJson { get; set; } = "[]";
 }
 
 public class RolePermission : BaseEntity
@@ -135,6 +142,150 @@ public class AssistanceRequest : BaseEntity
     public Guid? AssignedOrganisationId { get; set; }
     public string PreferredLanguage { get; set; } = "en";
     public string IdempotencyKey { get; set; } = string.Empty;
+    public List<RequestHistory> Timeline { get; set; } = new();
+    public List<AiRecommendation> AiRecommendations { get; set; } = new();
+}
+
+public class RequestHistory : BaseEntity
+{
+    public Guid AssistanceRequestId { get; set; }
+    public RequestStatus PreviousStatus { get; set; }
+    public RequestStatus NewStatus { get; set; }
+    public string ActionDescription { get; set; } = string.Empty;
+    public Guid ChangedByUserId { get; set; }
+    public string ChangedByUserName { get; set; } = string.Empty;
+    public string ChangedByRole { get; set; } = string.Empty;
+}
+
+public class RequestFeedback : BaseEntity
+{
+    public Guid AssistanceRequestId { get; set; }
+    public Guid CitizenUserId { get; set; }
+    public int Rating { get; set; } = 5;
+    public string Comments { get; set; } = string.Empty;
+    public bool WasAidTimely { get; set; } = true;
+    public bool WasQuantitySufficient { get; set; } = true;
+}
+
+public class AiRecommendation : BaseEntity
+{
+    public Guid? AssistanceRequestId { get; set; }
+    public Guid? CrisisEventId { get; set; }
+    public AiRecommendationType RecommendationType { get; set; }
+    public string ModelIdentifier { get; set; } = "AI-Priority-Classifier";
+    public string RecommendedCategory { get; set; } = string.Empty;
+    public UrgencyLevel RecommendedUrgency { get; set; }
+    public double RecommendedPriorityScore { get; set; }
+    public double ConfidenceScore { get; set; }
+    public string Rationale { get; set; } = string.Empty;
+    public string ExplainableFactorsJson { get; set; } = "{}";
+    public string SuggestedPayloadJson { get; set; } = "{}";
+    public GovernanceDecisionStatus GovernanceStatus { get; set; } = GovernanceDecisionStatus.PendingReview;
+    public HumanGovernanceDecision? HumanDecision { get; set; }
+}
+
+public class HumanGovernanceDecision : BaseEntity
+{
+    public Guid AiRecommendationId { get; set; }
+    public GovernanceDecisionStatus ActionTaken { get; set; }
+    public string OriginalAiRecommendationSummary { get; set; } = string.Empty;
+    public double OriginalConfidence { get; set; }
+    public string FinalHumanDecisionSummary { get; set; } = string.Empty;
+    public string OverrideJustification { get; set; } = string.Empty;
+    public Guid ResponsibleUserId { get; set; }
+    public string ResponsibleUserName { get; set; } = string.Empty;
+    public string ResponsibleUserRole { get; set; } = string.Empty;
+    public DateTime DecisionTimestampUtc { get; set; } = DateTime.UtcNow;
+}
+
+public class Shelter : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public Guid CrisisEventId { get; set; }
+    public string Address { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public int TotalCapacity { get; set; }
+    public int CurrentOccupancy { get; set; }
+    public bool IsWheelchairAccessible { get; set; }
+    public bool HasMedicalFacility { get; set; }
+    public bool HasCleanWater { get; set; } = true;
+    public bool HasPowerBackup { get; set; }
+    public bool HasChildSafeSpace { get; set; }
+    public string AvailableServices { get; set; } = string.Empty;
+    public string Status { get; set; } = "Operational";
+    public Guid? ManagedByOrganisationId { get; set; }
+}
+
+public class ShelterAllocation : BaseEntity
+{
+    public Guid ShelterId { get; set; }
+    public Guid? AssistanceRequestId { get; set; }
+    public Guid CitizenUserId { get; set; }
+    public string HouseholdName { get; set; } = string.Empty;
+    public int AllocatedMembersCount { get; set; }
+    public bool RequiresAccessibility { get; set; }
+    public string AllocationStatus { get; set; } = "Active";
+    public Guid ApprovedByUserId { get; set; }
+}
+
+public class ResourceItem : BaseEntity
+{
+    public string Name { get; set; } = string.Empty;
+    public RequestCategory Category { get; set; }
+    public string Unit { get; set; } = "Units";
+    public int TotalQuantity { get; set; }
+    public int AvailableQuantity { get; set; }
+    public int AllocatedQuantity { get; set; }
+    public int ReorderThreshold { get; set; } = 50;
+    public string WarehouseName { get; set; } = string.Empty;
+    public double WarehouseLatitude { get; set; }
+    public double WarehouseLongitude { get; set; }
+    public bool SupportsColdChain { get; set; }
+    public DateTime? ExpiryDateUtc { get; set; }
+    public Guid? OwningOrganisationId { get; set; }
+}
+
+public class ResourceAllocation : BaseEntity
+{
+    public Guid ResourceItemId { get; set; }
+    public Guid AssistanceRequestId { get; set; }
+    public int RequestedQuantity { get; set; }
+    public int AllocatedQuantity { get; set; }
+    public bool IsPartialShortageAllocation { get; set; }
+    public string AllocationStrategyUsed { get; set; } = string.Empty;
+    public double ConstraintMatchScore { get; set; }
+    public double EstimatedDistanceKm { get; set; }
+    public string AlternativeRecommendation { get; set; } = string.Empty;
+    public string Status { get; set; } = "Allocated";
+    public Guid ApprovedByUserId { get; set; }
+}
+
+public class DispatchRecord : BaseEntity
+{
+    public Guid ResourceAllocationId { get; set; }
+    public string VehicleRegistration { get; set; } = string.Empty;
+    public string DriverName { get; set; } = string.Empty;
+    public string RouteSummary { get; set; } = string.Empty;
+    public double DistanceKm { get; set; }
+    public int EstimatedTravelMinutes { get; set; }
+    public string DispatchStatus { get; set; } = "Dispatched";
+    public DateTime DispatchedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? DeliveredAtUtc { get; set; }
+}
+
+public class PartnerAidRequest : BaseEntity
+{
+    public Guid RequestingOrganisationId { get; set; }
+    public Guid? TargetPartnerOrganisationId { get; set; }
+    public RequestCategory NeededCategory { get; set; }
+    public string ResourceName { get; set; } = string.Empty;
+    public int QuantityNeeded { get; set; }
+    public string Justification { get; set; } = string.Empty;
+    public string Status { get; set; } = "Open";
+}
+
+public class VolunteerProfile : BaseEntity
 }
 
 internal static class LegacyCrisisDraftMapper
