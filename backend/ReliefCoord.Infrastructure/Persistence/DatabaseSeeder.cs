@@ -1324,38 +1324,413 @@ public static class DatabaseSeeder
             Name = "UN OCHA Regional Coordination Office",
             OrganisationType = "International Agency",
             Country = "Sri Lanka / Regional",
+            ContactEmail = "ops@unocha-relief.org",
+            ContactPhone = "+94-11-2501234",
+            IsVerified = true
+        };
+
+        var orgRedCross = new Organisation
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111102"),
+            Name = "Sri Lanka Red Cross Society",
+            OrganisationType = "National NGO",
+            Country = "Sri Lanka",
+            ContactEmail = "dispatch@redcross.lk",
+            ContactPhone = "+94-11-2691095",
+            IsVerified = true
+        };
+
+        var orgDmc = new Organisation
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111103"),
+            Name = "National Disaster Management Centre (DMC)",
+            OrganisationType = "Government Authority",
+            Country = "Sri Lanka",
+            ContactEmail = "eoc@dmc.gov.lk",
+            ContactPhone = "+94-11-2136136",
+            IsVerified = true
+        };
+
+        var orgMsf = new Organisation
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111104"),
+            Name = "Médecins Sans Frontières (MSF Medical Rapid Team)",
+            OrganisationType = "Medical INGO",
+            Country = "International",
+            ContactEmail = "medical-coord@msf.org",
+            ContactPhone = "+94-11-2445566",
+            IsVerified = true
+        };
+
+        await db.Organisations.AddRangeAsync(orgUnOcha, orgRedCross, orgDmc, orgMsf);
+
+        var (defaultHash, defaultSalt) = HumanitarianOperationsService.HashPassword("Relief@2026");
+
+        var users = new List<AppUser>
+        {
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222201"),
+                FullName = "Nimali Perera (Affected Citizen)",
+                Email = "citizen@relief.org",
+                PhoneNumber = "+94-77-1112233",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.Citizen,
+                PreferredLanguage = "si"
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222202"),
+                FullName = "Dr. Arjuna Jayawardena (Emergency Coordinator)",
+                Email = "coordinator@relief.org",
+                PhoneNumber = "+94-77-2223344",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.EmergencyCoordinator,
+                PreferredLanguage = "en",
+                OrganisationId = orgUnOcha.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222203"),
+                FullName = "Kasun Fernando (Incident Case Manager)",
+                Email = "casemanager@relief.org",
+                PhoneNumber = "+94-77-3334455",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.CaseManager,
+                PreferredLanguage = "en",
+                OrganisationId = orgDmc.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222204"),
+                FullName = "Roshan Silva (Resource & Logistics Manager)",
+                Email = "logistics@relief.org",
+                PhoneNumber = "+94-77-4445566",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.LogisticsManager,
+                PreferredLanguage = "en",
+                OrganisationId = orgRedCross.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222205"),
+                FullName = "Meena Selvarajah (Shelter Administrator)",
+                Email = "shelter@relief.org",
+                PhoneNumber = "+94-77-5556677",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.ShelterAdmin,
+                PreferredLanguage = "ta",
+                OrganisationId = orgDmc.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222206"),
+                FullName = "Dilshan Bandara (Volunteer Coordinator)",
+                Email = "volunteer@relief.org",
+                PhoneNumber = "+94-77-6667788",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.VolunteerCoordinator,
+                PreferredLanguage = "en",
+                OrganisationId = orgRedCross.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222207"),
+                FullName = "Elena Rostova (Donor & Funding Officer)",
+                Email = "donor@relief.org",
+                PhoneNumber = "+94-77-7778899",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.DonorOfficer,
+                PreferredLanguage = "en",
+                OrganisationId = orgUnOcha.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222208"),
+                FullName = "Dr. Tariq Al-Mansoor (Partner Organisation Officer)",
+                Email = "partner@relief.org",
+                PhoneNumber = "+94-77-8889900",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.PartnerOfficer,
+                PreferredLanguage = "ar",
+                OrganisationId = orgMsf.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222209"),
+                FullName = "Chaminda Wijesinghe (System Administrator)",
+                Email = "admin@relief.org",
+                PhoneNumber = "+94-77-9990011",
+                PasswordHash = defaultHash,
+                PasswordSalt = defaultSalt,
+                Role = UserRole.SystemAdmin,
+                PreferredLanguage = "en",
+                OrganisationId = orgUnOcha.Id
+            }
+        };
+
+        await db.Users.AddRangeAsync(users);
+
+        var household = new HouseholdProfile
+        {
+            UserId = users[0].Id,
+            HouseholdHeadName = "Nimali Perera",
+            TotalMembers = 6,
+            ChildrenCount = 2,
+            ElderlyCount = 1,
+            HasMobilityNeeds = true,
+            HasChronicMedicalNeeds = true,
+            MedicalNotes = "Grandmother requires daily cold-chain Insulin glargine and wheelchair evacuation support.",
+            PrimaryAddress = "42 Kalu Ganga Bank Road, Ratnapura",
+            Latitude = 6.6828,
+            Longitude = 80.3992
+        };
+        await db.Households.AddAsync(household);
+
+        var crisisFlood = new CrisisEvent
+        {
+            Id = Guid.Parse("33333333-3333-3333-3333-333333333301"),
+            Title = "Southwest Monsoon Kalu Ganga Basin Severe Flooding & Landslides",
+            CrisisType = CrisisType.Flood,
+            Severity = CrisisSeverity.Critical,
+            Country = "Sri Lanka",
+            Region = "Sabaragamuwa & Western Provinces (Ratnapura / Kalutara)",
+            Description = "Torrential monsoon rainfall exceeding 340mm in 24 hours caused major embankment breaches along Kalu Ganga and triggered slope failures in Badulla.",
+            CenterLatitude = 6.6828,
+            CenterLongitude = 80.3992,
+            RadiusKm = 45.0,
+            IsActive = true,
+            LeadCoordinatorId = users[1].Id,
+            OperationalAreas = new List<OperationalArea>
+            {
+                new()
+                {
+                    ZoneName = "Sector Alpha - Ratnapura Town Lowlands",
+                    District = "Ratnapura",
+                    Latitude = 6.6828,
+                    Longitude = 80.3992,
+                    CoverageRadiusKm = 15.0,
+                    EstimatedAffectedPopulation = 18400,
+                    RiskLevel = "Critical",
+                    AssignedOrganisationId = orgDmc.Id
+                },
+                new()
+                {
+                    ZoneName = "Sector Bravo - Kalutara River Mouth",
+                    District = "Kalutara",
+                    Latitude = 6.5854,
+                    Longitude = 79.9607,
+                    CoverageRadiusKm = 18.0,
+                    EstimatedAffectedPopulation = 14200,
+                    RiskLevel = "High",
+                    AssignedOrganisationId = orgRedCross.Id
+                },
+                new()
+                {
+                    ZoneName = "Sector Charlie - Badulla Highland Slope",
+                    District = "Badulla",
+                    Latitude = 6.9934,
+                    Longitude = 81.0550,
+                    CoverageRadiusKm = 12.0,
+                    EstimatedAffectedPopulation = 6900,
+                    RiskLevel = "Critical",
+                    AssignedOrganisationId = orgMsf.Id
+                }
+            }
+        };
+        await db.CrisisEvents.AddAsync(crisisFlood);
+
+        var alert1 = new PublicAlert
+        {
+            CrisisEventId = crisisFlood.Id,
+            Title = "RED FLOOD EVACUATION WARNING: Kalu Ganga Basin",
+            Message = "Water levels at Ratnapura gauge have exceeded major flood stage (9.8m). Residents in low-lying divisions must evacuate immediately to verified elevated shelters.",
+            SeverityLevel = "Critical",
+            SafetyGuidance = "Disconnect mains electricity, carry essential prescription medicines, avoid wading through moving floodwater, and proceed to Ferguson High School or Kalutara Civic Relief Centre.",
+            TranslationsJson = JsonSerializer.Serialize(new Dictionary<string, string>
+            {
+                ["si"] = "රතු ගංවතුර අනතුරු ඇඟවීම: කළු ගඟ ද්‍රෝණියේ ජල මට්ටම අවදානම් සීමාව ඉක්මවා ඇත. වහාම ආරක්ෂිත මධ්‍යස්ථාන වෙත යොමු වන්න.",
+                ["ta"] = "சிவப்பு வெள்ள அபாய எச்சரிக்கை: களுகங்கைப் பகுதியில் நீர்மட்டம் அபாய அளவைத் தாண்டியுள்ளது. உடனடியாக பாதுகாப்பான முகாம்களுக்குச் செல்லவும்."
+            }),
+            IsVerified = true,
+            IssuedByUserId = users[1].Id
+        };
+        await db.PublicAlerts.AddAsync(alert1);
+
+        var shelters = new List<Shelter>
+        {
+            new()
+            {
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444401"),
+                Name = "Ratnapura Central High-Ground Relief Complex",
+                CrisisEventId = crisisFlood.Id,
+                Address = "Hilltop Circular Road, Ratnapura",
+                Latitude = 6.6915,
+                Longitude = 80.4080,
+                TotalCapacity = 450,
+                CurrentOccupancy = 390,
+                IsWheelchairAccessible = true,
+                HasMedicalFacility = true,
+                HasCleanWater = true,
+                HasPowerBackup = true,
+                HasChildSafeSpace = true,
+                AvailableServices = "Emergency Triage, Insulin Cold Storage, Wheelchair Ramps, Infant Nutrition",
+                Status = "Operational",
+                ManagedByOrganisationId = orgDmc.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444402"),
+                Name = "Kalutara North Community Evacuation Hall",
+                CrisisEventId = crisisFlood.Id,
+                Address = "Galle Road Junction, Kalutara",
+                Latitude = 6.5920,
+                Longitude = 79.9650,
+                TotalCapacity = 300,
+                CurrentOccupancy = 210,
+                IsWheelchairAccessible = true,
+                HasMedicalFacility = false,
+                HasCleanWater = true,
+                HasPowerBackup = true,
+                HasChildSafeSpace = true,
+                AvailableServices = "Dry Rations, Clean Water, Accessible Restrooms",
+                Status = "Operational",
+                ManagedByOrganisationId = orgRedCross.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("44444444-4444-4444-4444-444444444403"),
+                Name = "Badulla Ridge School Emergency Center",
+                CrisisEventId = crisisFlood.Id,
+                Address = "Passara Road, Badulla",
+                Latitude = 6.9980,
+                Longitude = 81.0610,
+                TotalCapacity = 200,
+                CurrentOccupancy = 195,
+                IsWheelchairAccessible = false,
+                HasMedicalFacility = true,
+                HasCleanWater = true,
+                HasPowerBackup = false,
+                HasChildSafeSpace = false,
+                AvailableServices = "Trauma First Aid, Blankets, Hot Meals",
+                Status = "NearCapacity",
+                ManagedByOrganisationId = orgMsf.Id
+            }
+        };
+        await db.Shelters.AddRangeAsync(shelters);
+
+        var resources = new List<ResourceItem>
+        {
+            new()
+            {
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555501"),
+                Name = "Emergency Insulin & Acute Trauma Medical Kits",
+                Category = RequestCategory.Medicine,
+                Unit = "Medical Kits",
+                TotalQuantity = 80,
+                AvailableQuantity = 25,
+                AllocatedQuantity = 55,
+                ReorderThreshold = 30,
+                WarehouseName = "Ratnapura MSF Cold-Chain Depot",
+                WarehouseLatitude = 6.6890,
+                WarehouseLongitude = 80.4020,
+                SupportsColdChain = true,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(22),
+                OwningOrganisationId = orgMsf.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555502"),
+                Name = "Regional Reserve Medical Supplies",
+                Category = RequestCategory.Medicine,
+                Unit = "Medical Kits",
+                TotalQuantity = 150,
+                AvailableQuantity = 95,
+                AllocatedQuantity = 55,
+                ReorderThreshold = 40,
+                WarehouseName = "Colombo Central UN OCHA Logistics Hub",
+                WarehouseLatitude = 6.9271,
+                WarehouseLongitude = 79.8612,
+                SupportsColdChain = true,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(120),
+                OwningOrganisationId = orgUnOcha.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555503"),
+                Name = "High-Energy Flood Ration Packs (72-Hour Family Pack)",
+                Category = RequestCategory.Food,
+                Unit = "Family Packs",
+                TotalQuantity = 600,
+                AvailableQuantity = 340,
+                AllocatedQuantity = 260,
+                ReorderThreshold = 100,
+                WarehouseName = "Kalutara Red Cross Forward Depot",
+                WarehouseLatitude = 6.5880,
+                WarehouseLongitude = 79.9630,
+                SupportsColdChain = false,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(45),
+                OwningOrganisationId = orgRedCross.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555504"),
+                Name = "Potable Water Purification & 20L Jerrycans",
+                Category = RequestCategory.WaterAndSanitation,
+                Unit = "Units",
+                TotalQuantity = 500,
+                AvailableQuantity = 290,
+                AllocatedQuantity = 210,
+                ReorderThreshold = 100,
+                WarehouseName = "Ratnapura DMC Logistics Yard",
+                WarehouseLatitude = 6.6850,
+                WarehouseLongitude = 80.4010,
+                SupportsColdChain = false,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(365),
+                OwningOrganisationId = orgDmc.Id
+            },
+            new()
+            {
+                Id = Guid.Parse("55555555-5555-5555-5555-555555555505"),
+                Name = "All-Terrain Evacuation Wheelchairs & Mobility Aids",
+                Category = RequestCategory.AccessibilityAssistance,
+                Unit = "Sets",
+                TotalQuantity = 60,
+                AvailableQuantity = 38,
+                AllocatedQuantity = 22,
+                ReorderThreshold = 15,
+                WarehouseName = "Ratnapura DMC Logistics Yard",
+                WarehouseLatitude = 6.6850,
+                WarehouseLongitude = 80.4010,
+                SupportsColdChain = false,
+                ExpiryDateUtc = null,
+                OwningOrganisationId = orgDmc.Id
+            }
+        };
+        await db.Resources.AddRangeAsync(resources);
+
+        var req1Id = Guid.Parse("66666666-6666-6666-6666-666666666601");
+        var req2Id = Guid.Parse("66666666-6666-6666-6666-666666666602");
+        var req3Id = Guid.Parse("66666666-6666-6666-6666-666666666603");
+        var req4Id = Guid.Parse("66666666-6666-6666-6666-666666666604");
+
+        var requests = new List<AssistanceRequest>
+        {
+            new()
+            {
+                Id = req1Id,
+                ReferenceCode = "REQ-20261023-1001",
+                CitizenUserId = users[0].Id,
+                CrisisEventId = crisisFlood.Id,
+                Category = RequestCategory.Medicine,
+                SelfReportedUrgency = UrgencyLevel.Critical,
     }
-}
-
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
-
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
-    }
-
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
-    }
-
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
 }
