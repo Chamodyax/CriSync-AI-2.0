@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/ReliefCoord.Api/ReliefCoord.Api.csproj" />
+    <Project Path="backend/ReliefCoord.Application/ReliefCoord.Application.csproj" />
+    <Project Path="backend/ReliefCoord.Domain/ReliefCoord.Domain.csproj" />
+    <Project Path="backend/ReliefCoord.Infrastructure/ReliefCoord.Infrastructure.csproj" />
+    <Project Path="backend/ReliefCoord.Tests/ReliefCoord.Tests.csproj" />
+  </Folder>
+</Solution>
