@@ -814,5 +814,548 @@ public static class DatabaseSeeder
                             ChangedByRole = "EmergencyCoordinator",
                             CreatedAtUtc = DateTime.UtcNow.AddMinutes(-25),
                             UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-25)
+                        }
+                    }
+                },
+                new()
+                {
+                    Id = req2Id,
+                    ReferenceCode = "REQ-20261116-1048",
+                    CitizenUserId = kamalId,
+                    CrisisEventId = crisisFloodId,
+                    Category = RequestCategory.Medicine,
+                    SelfReportedUrgency = UrgencyLevel.Critical,
+                    FinalApprovedUrgency = UrgencyLevel.Critical,
+                    PriorityScore = 88.0,
+                    Title = "Emergency Trauma & First-Aid Kits for Cut-Off Families in Nivitigala Valley",
+                    Description = "Mudslide debris completely blocked the Nivitigala Valley estate road overnight and electricity and mobile signal are down. Logged through Case Manager Kasun Fernando on behalf of 14 injured estate residents needing wound dressing, antibiotics, and emergency medical kits.",
+                    AffectedPeopleCount = 14,
+                    RequestedQuantity = 18,
+                    RequiresAccessibilitySupport = false,
+                    LocationAddress = "Nivitigala Valley Road, Ratnapura",
+                    Latitude = 6.6650,
+                    Longitude = 80.4150,
+                    SupportingEvidenceFileName = "nivitigala_landslide_road.jpg",
+                    SupportingEvidenceMimeType = "image/jpeg",
+                    Status = RequestStatus.Prioritised,
+                    IsFlaggedPotentialDuplicate = false,
+                    AssignedCaseManagerId = kasunId,
+                    AssignedOrganisationId = orgMsfId,
+                    PreferredLanguage = "si",
+                    IdempotencyKey = "REQ-HASH-20261116-1048",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-3).AddMinutes(-20),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-50),
+                    Timeline = new List<RequestHistory>
+                    {
+                        new()
+                        {
+                            AssistanceRequestId = req2Id,
+                            PreviousStatus = RequestStatus.Submitted,
+                            NewStatus = RequestStatus.Prioritised,
+                            ActionDescription = "Registered on behalf of Kamal Jayasuriya by Case Manager Kasun Fernando and verified for medical dispatch.",
+                            ChangedByUserId = kasunId,
+                            ChangedByUserName = "Kasun Fernando",
+                            ChangedByRole = "CaseManager",
+                            CreatedAtUtc = DateTime.UtcNow.AddHours(-3).AddMinutes(-20),
+                            UpdatedAtUtc = DateTime.UtcNow.AddHours(-3).AddMinutes(-20)
+                        }
+                    }
+                },
+                new()
+                {
+                    Id = req3Id,
+                    ReferenceCode = "REQ-20261116-1051",
+                    CitizenUserId = samanId,
+                    CrisisEventId = crisisFloodId,
+                    Category = RequestCategory.Medicine,
+                    SelfReportedUrgency = UrgencyLevel.High,
+                    FinalApprovedUrgency = UrgencyLevel.High,
+                    PriorityScore = 82.5,
+                    Title = "Need Cold-Chain Insulin & Medical Kits Near Kalu Ganga Bank Clinic",
+                    Description = "Sending an urgent request from 44 Kalu Ganga Bank Road — rising river water around the corner clinic has trapped 18 elderly diabetic patients who need insulin and medical kits immediately.",
+                    AffectedPeopleCount = 18,
+                    RequestedQuantity = 20,
+                    RequiresAccessibilitySupport = true,
+                    LocationAddress = "44 Kalu Ganga Bank Road, Ratnapura",
+                    Latitude = 6.6830,
+                    Longitude = 80.3995,
+                    SupportingEvidenceFileName = "ratnapura_bank_road_water_level.jpg",
+                    SupportingEvidenceMimeType = "image/jpeg",
+                    Status = RequestStatus.PendingAiReview,
+                    IsFlaggedPotentialDuplicate = true,
+                    PotentialDuplicateOfRequestId = req1Id,
+                    DuplicateSimilarityScore = 0.86,
+                    AssignedCaseManagerId = kasunId,
+                    AssignedOrganisationId = orgDmcId,
+                    PreferredLanguage = "en",
+                    IdempotencyKey = "REQ-HASH-20261116-1051",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-40),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-40),
+                    Timeline = new List<RequestHistory>
+                    {
+                        new()
+                        {
+                            AssistanceRequestId = req3Id,
+                            PreviousStatus = RequestStatus.Submitted,
+                            NewStatus = RequestStatus.PendingAiReview,
+                            ActionDescription = "Submitted by Saman Kumara; flagged as 86% similar to REQ-20261116-1042 for human coordinator verification.",
+                            ChangedByUserId = samanId,
+                            ChangedByUserName = "Saman Kumara",
+                            ChangedByRole = "Citizen",
+                            CreatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-40),
+                            UpdatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-40)
+                        }
+                    }
+                },
+                new()
+                {
+                    Id = req4Id,
+                    ReferenceCode = "REQ-20261116-1059",
+                    CitizenUserId = malaId,
+                    CrisisEventId = crisisFloodId,
+                    Category = RequestCategory.Food,
+                    SelfReportedUrgency = UrgencyLevel.High,
+                    FinalApprovedUrgency = UrgencyLevel.High,
+                    PriorityScore = 76.2,
+                    Title = "Dry Rations, Clean Water & Infant Formula for St. Luke Parish Hall Families",
+                    Description = "Our neighbourhood families (32 households, 95 people including young children and elderly grandparents) evacuated into St. Luke's Parish Hall after Kalutara floodwater rose waist-high. We urgently need 72-hour dry ration packs and infant formula until shelter kitchens stabilize.",
+                    AffectedPeopleCount = 95,
+                    RequestedQuantity = 45,
+                    RequiresAccessibilitySupport = true,
+                    LocationAddress = "St. Luke Parish Road, Kalutara",
+                    Latitude = 6.5854,
+                    Longitude = 79.9607,
+                    SupportingEvidenceFileName = "st_luke_hall_families.jpg",
+                    SupportingEvidenceMimeType = "image/jpeg",
+                    Status = RequestStatus.Prioritised,
+                    IsFlaggedPotentialDuplicate = false,
+                    AssignedCaseManagerId = kasunId,
+                    AssignedOrganisationId = orgRedCrossId,
+                    PreferredLanguage = "en",
+                    IdempotencyKey = "REQ-HASH-20261116-1059",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1).AddMinutes(-35),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1).AddMinutes(-10),
+                    Timeline = new List<RequestHistory>
+                    {
+                        new()
+                        {
+                            AssistanceRequestId = req4Id,
+                            PreviousStatus = RequestStatus.Submitted,
+                            NewStatus = RequestStatus.Prioritised,
+                            ActionDescription = "Verified by Case Manager Kasun Fernando for Red Cross Kalutara family ration dispatch.",
+                            ChangedByUserId = kasunId,
+                            ChangedByUserName = "Kasun Fernando",
+                            ChangedByRole = "CaseManager",
+                            CreatedAtUtc = DateTime.UtcNow.AddHours(-1).AddMinutes(-10),
+                            UpdatedAtUtc = DateTime.UtcNow.AddHours(-1).AddMinutes(-10)
+                        }
+                    }
+                }
+            };
+
+            await db.AssistanceRequests.AddRangeAsync(requests);
+
+            var rec1Id = Guid.Parse("77777777-7777-7777-7777-777777777711");
+            var rec1 = new AiRecommendation
+            {
+                Id = rec1Id,
+                AssistanceRequestId = req1Id,
+                CrisisEventId = crisisFloodId,
+                RecommendationType = AiRecommendationType.UrgencyScoring,
+                ModelIdentifier = "AI-Priority-Classifier",
+                RecommendedCategory = RequestCategory.Medicine.ToString(),
+                RecommendedUrgency = UrgencyLevel.Critical,
+                RecommendedPriorityScore = 89.0,
+                ConfidenceScore = 0.92,
+                Rationale = "Urgent medicine request for 18 elderly diabetic patients with mobility needs at flooded Kalu Ganga Bank clinic.",
+                ExplainableFactorsJson = JsonSerializer.Serialize(new Dictionary<string, double>
+                {
+                    ["MedicalKeywordScore"] = 32.0,
+                    ["PeopleCountScore"] = 25.0,
+                    ["UserUrgencyScore"] = 26.0,
+                    ["CategoryBaseScore"] = 18.0
+                }),
+                GovernanceStatus = GovernanceDecisionStatus.Modified,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-4),
+                UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-25)
+            };
+
+            var govDec1 = new HumanGovernanceDecision
+            {
+                AiRecommendationId = rec1Id,
+                ActionTaken = GovernanceDecisionStatus.Modified,
+                OriginalAiRecommendationSummary = "Category=Medicine, Urgency=Critical, PriorityScore=89.0",
+                OriginalConfidence = 0.92,
+                FinalHumanDecisionSummary = "Action=Modified, FinalCategory=Medicine, FinalUrgency=LifeThreatening",
+                OverrideJustification = "Upgraded from Critical to LifeThreatening after confirmation from Ratnapura District Medical Officer.",
+                ResponsibleUserId = arjunaId,
+                ResponsibleUserName = "Dr. Arjuna Jayawardena",
+                ResponsibleUserRole = UserRole.EmergencyCoordinator.ToString(),
+                DecisionTimestampUtc = DateTime.UtcNow.AddMinutes(-25)
+            };
+
+            var rec2 = new AiRecommendation
+            {
+                Id = Guid.Parse("77777777-7777-7777-7777-777777777712"),
+                AssistanceRequestId = req3Id,
+                CrisisEventId = crisisFloodId,
+                RecommendationType = AiRecommendationType.DuplicateDetection,
+                ModelIdentifier = "AI-Priority-Classifier",
+                RecommendedCategory = RequestCategory.Medicine.ToString(),
+                RecommendedUrgency = UrgencyLevel.High,
+                RecommendedPriorityScore = 82.5,
+                ConfidenceScore = 0.89,
+                Rationale = "86% text and location overlap with REQ-20261116-1042 from Nimali Perera. Held in queue for coordinator duplicate check.",
+                ExplainableFactorsJson = JsonSerializer.Serialize(new Dictionary<string, double>
+                {
+                    ["TextMatchScore"] = 0.81,
+                    ["LocationDistanceScore"] = 0.98,
+                    ["CategoryMatchScore"] = 1.00
+                }),
+                GovernanceStatus = GovernanceDecisionStatus.PendingReview,
+                CreatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-38),
+                UpdatedAtUtc = DateTime.UtcNow.AddHours(-2).AddMinutes(-38)
+            };
+
+            await db.AiRecommendations.AddRangeAsync(rec1, rec2);
+            await db.GovernanceDecisions.AddAsync(govDec1);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.Volunteers.AnyAsync())
+        {
+            var volunteers = new List<VolunteerProfile>
+            {
+                new()
+                {
+                    Id = Guid.Parse("88888888-8888-8888-8888-888888888811"),
+                    UserId = tharushiId,
+                    FullName = "Tharushi Mendis",
+                    SkillsCsv = "Field Medical Aid, Supply Distribution, Shelter Intake",
+                    LanguagesCsv = "si,en",
+                    IsVerified = true,
+                    IsAvailable = true,
+                    AvailabilitySchedule = "Daily 06:00-22:00 Emergency Standby",
+                    CurrentLatitude = 6.6845,
+                    CurrentLongitude = 80.4005,
+                    CompletedTasksCount = 6
+                },
+                new()
+                {
+                    Id = Guid.Parse("88888888-8888-8888-8888-888888888812"),
+                    UserId = dilshanId,
+                    FullName = "Dr. Kavindi Samarasinghe",
+                    SkillsCsv = "Emergency Medicine, Triage, Cold-Chain Logistics, First Aid",
+                    LanguagesCsv = "en,si,ta",
+                    IsVerified = true,
+                    IsAvailable = true,
+                    AvailabilitySchedule = "24/7 Emergency Rapid Deployment",
+                    CurrentLatitude = 6.6860,
+                    CurrentLongitude = 80.4030,
+                    CompletedTasksCount = 14
+                },
+                new()
+                {
+                    Id = Guid.Parse("88888888-8888-8888-8888-888888888813"),
+                    UserId = dilshanId,
+                    FullName = "Suresh Krishnan",
+                    SkillsCsv = "Swift-Water Rescue, Boat Navigation, Wheelchair Evacuation",
+                    LanguagesCsv = "ta,si,en",
+                    IsVerified = true,
+                    IsAvailable = true,
+                    AvailabilitySchedule = "Day & Night Shift",
+                    CurrentLatitude = 6.5910,
+                    CurrentLongitude = 79.9640,
+                    CompletedTasksCount = 9
+                },
+                new()
+                {
+                    Id = Guid.Parse("88888888-8888-8888-8888-888888888814"),
+                    UserId = dilshanId,
+                    FullName = "Fathima Rizwan",
+                    SkillsCsv = "Child Protection, Psychosocial Support, Multilingual Translation",
+                    LanguagesCsv = "ta,en,ar,si",
+                    IsVerified = true,
+                    IsAvailable = true,
+                    AvailabilitySchedule = "Shelter Shift 06:00-20:00",
+                    CurrentLatitude = 6.6900,
+                    CurrentLongitude = 80.4070,
+                    CompletedTasksCount = 11
+                },
+                new()
+                {
+                    Id = Guid.Parse("88888888-8888-8888-8888-888888888815"),
+                    UserId = nuwanId,
+                    FullName = "Nuwan Jayaweera",
+                    SkillsCsv = "Swift-Water Rescue, First Aid, Generator Maintenance",
+                    LanguagesCsv = "si,en",
+                    IsVerified = false,
+                    IsAvailable = false,
+                    AvailabilitySchedule = "Weekends & Evening On-Call",
+                    CurrentLatitude = 6.6780,
+                    CurrentLongitude = 80.3940,
+                    CompletedTasksCount = 0
+                }
+            };
+
+            await db.Volunteers.AddRangeAsync(volunteers);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.DonationCampaigns.AnyAsync())
+        {
+            var campaignId = Guid.Parse("99999999-9999-9999-9999-999999999911");
+            var campaign = new DonationCampaign
+            {
+                Id = campaignId,
+                Title = "2026 Monsoon Flood & Landslide Emergency Appeal",
+                CrisisEventId = crisisFloodId,
+                TargetAmountUsd = 500000m,
+                CollectedAmountUsd = 185400m,
+                DisbursedAmountUsd = 112000m,
+                IsActive = true
+            };
+
+            await db.DonationCampaigns.AddAsync(campaign);
+
+            var donations = new List<DonationRecord>
+            {
+                new()
+                {
+                    CampaignId = campaignId,
+                    DonorUserId = sanjayaId,
+                    DonorName = "Sanjaya Perera (Lanka Community Relief Trust)",
+                    DonationType = "Monetary",
+                    MonetaryAmountUsd = 45000m,
+                    PaymentGatewayReference = "LKPAY-20261116-8841-3092",
+                    AllocationPurpose = "Cold-Chain Insulin & Emergency Medical Boats",
+                    IsFlaggedSuspicious = false,
+                    IsReviewedByHuman = true,
+                    VerificationStatus = "Verified",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-3),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-3)
+                },
+                new()
+                {
+                    CampaignId = campaignId,
+                    DonorUserId = elenaId,
+                    DonorName = "Horizon Maritime Foundation",
+                    DonationType = "Monetary",
+                    MonetaryAmountUsd = 92000m,
+                    PaymentGatewayReference = "SWIFT-LK-20261116-7740-1920",
+                    AllocationPurpose = "Regional Aviation & Heavy Flood-Pump Charter",
+                    IsFlaggedSuspicious = true,
+                    SuspiciousReason = "High-value monetary contribution (>= $50,000 USD) flagged for mandatory Donor Officer compliance & AML verification.",
+                    IsReviewedByHuman = false,
+                    VerificationStatus = "FlaggedPendingHumanReview",
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-1),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-1)
+                }
+            };
+
+            await db.Donations.AddRangeAsync(donations);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.AuditEvents.AnyAsync())
+        {
+            var audits = new List<AuditEventRecord>
+            {
+                new()
+                {
+                    EventCategory = "CrisisManagement",
+                    ActionName = "CrisisEvent_Declared",
+                    EntityType = nameof(CrisisEvent),
+                    EntityId = crisisFloodId.ToString(),
+                    ActorUserId = arjunaId,
+                    ActorUserName = "Dr. Arjuna Jayawardena",
+                    ActorRole = UserRole.EmergencyCoordinator.ToString(),
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        Title = "Southwest Monsoon Kalu Ganga Basin Severe Flooding & Landslides",
+                        Severity = "Critical",
+                        Sectors = 3
+                    }),
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-6),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-6)
+                },
+                new()
+                {
+                    EventCategory = "UserOnboarding",
+                    ActionName = "CitizenRegisteredOnBehalf",
+                    EntityType = nameof(AppUser),
+                    EntityId = kamalId.ToString(),
+                    ActorUserId = kasunId,
+                    ActorUserName = "Kasun Fernando",
+                    ActorRole = UserRole.CaseManager.ToString(),
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        CitizenName = "Kamal Jayasuriya",
+                        District = "Ratnapura / Nivitigala",
+                        Reason = "Power and mobile connectivity disruption following landslide"
+                    }),
+                    CreatedAtUtc = DateTime.UtcNow.AddHours(-3).AddMinutes(-20),
+                    UpdatedAtUtc = DateTime.UtcNow.AddHours(-3).AddMinutes(-20)
+                },
+                new()
+                {
+                    EventCategory = "AiGovernance",
+                    ActionName = "AiRecommendation_Modified",
+                    EntityType = nameof(AiRecommendation),
+                    EntityId = Guid.Parse("77777777-7777-7777-7777-777777777711").ToString(),
+                    ActorUserId = arjunaId,
+                    ActorUserName = "Dr. Arjuna Jayawardena",
+                    ActorRole = UserRole.EmergencyCoordinator.ToString(),
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        RequestCode = "REQ-20261116-1042",
+                        OriginalAiUrgency = "Critical",
+                        OverriddenUrgency = "LifeThreatening",
+                        Confidence = 0.92,
+                        Reason = "Confirmed acute cold-chain insulin shortage with Ratnapura District Medical Officer."
+                    }),
+                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-25),
+                    UpdatedAtUtc = DateTime.UtcNow.AddMinutes(-25)
+                }
+            };
+
+            await db.AuditEvents.AddRangeAsync(audits);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.MappingReferences.AnyAsync())
+        {
+            var refs = new List<MappingReference>
+            {
+                new()
+                {
+                    Label = "Ratnapura Mobile Medical Staging Point",
+                    ReferenceType = "ServiceCentre",
+                    Latitude = 6.6868,
+                    Longitude = 80.4025,
+                    GeoJsonPolygon = "{}",
+                    CrisisEventId = crisisFloodId
+                },
+                new()
+                {
+                    Label = "Kalutara River Rescue Coordination Pier",
+                    ReferenceType = "ServiceCentre",
+                    Latitude = 6.5889,
+                    Longitude = 79.9619,
+                    GeoJsonPolygon = "{}",
+                    CrisisEventId = crisisFloodId
+                },
+                new()
+                {
+                    Label = "Badulla Emergency Road Clearing Command",
+                    ReferenceType = "ServiceCentre",
+                    Latitude = 6.9951,
+                    Longitude = 81.0578,
+                    GeoJsonPolygon = "{}",
+                    CrisisEventId = crisisFloodId
+                }
+            };
+            await db.MappingReferences.AddRangeAsync(refs);
+            await db.SaveChangesAsync();
+        }
+
+        if (!await db.CampaignExpenditures.AnyAsync())
+        {
+            var seedCampaignId = Guid.Parse("99999999-9999-9999-9999-999999999911");
+            if (await db.DonationCampaigns.AnyAsync(c => c.Id == seedCampaignId))
+            {
+                var expenditures = new List<CampaignExpenditure>
+                {
+                    new()
+                    {
+                        CampaignId = seedCampaignId,
+                        AmountUsd = 48000m,
+                        Category = "MedicalSupplies",
+                        Description = "Cold-Chain Insulin, Dialysis Consumables & Mobile Clinic Batteries (MSF Dispatch)",
+                        RecordedByUserId = elenaId,
+                        RecordedByUserName = "Elena Rostova",
+                        ApprovedAtUtc = DateTime.UtcNow.AddHours(-2)
+                    },
+                    new()
+                    {
+                        CampaignId = seedCampaignId,
+                        AmountUsd = 64000m,
+                        Category = "FoodAndWaterLogistics",
+                        Description = "72-Hour Family Ration Packs & Potable Water Jerrycan Convoy (Red Cross / DMC)",
+                        RecordedByUserId = elenaId,
+                        RecordedByUserName = "Elena Rostova",
+                        ApprovedAtUtc = DateTime.UtcNow.AddHours(-1)
+                    }
+                };
+                await db.CampaignExpenditures.AddRangeAsync(expenditures);
+                await db.SaveChangesAsync();
+            }
+        }
+
+        if (!await db.OperationalKpiSnapshots.AnyAsync())
+        {
+            await db.OperationalKpiSnapshots.AddAsync(new OperationalKpiSnapshot
+            {
+                TotalRequests = 4,
+                UnresolvedCasesCount = 4,
+                CriticalOpenCasesCount = 2,
+                AverageResponseTimeMinutes = 14.5,
+                ResourceUtilisationPercentage = 43.3,
+                ShelterOccupancyPercentage = 83.7,
+                TotalDonationsCollectedUsd = 185400m,
+                CapturedAtUtc = DateTime.UtcNow.AddHours(-1)
+            });
+            await db.SaveChangesAsync();
+        }
     }
+
+    public static async Task SeedAsync(ReliefCoordDbContext db)
+    {
+        await db.Database.EnsureCreatedAsync();
+
+        if (await db.Users.AnyAsync())
+        {
+            return;
+        }
+
+        var orgUnOcha = new Organisation
+        {
+            Id = Guid.Parse("11111111-1111-1111-1111-111111111101"),
+            Name = "UN OCHA Regional Coordination Office",
+            OrganisationType = "International Agency",
+            Country = "Sri Lanka / Regional",
+    }
+}
+
+internal static class LegacyCrisisDraftMapper
+{
+    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    {
+        >= 5 => "LIFE_THREATENING",
+        4 => "CRITICAL",
+        3 => "HIGH",
+        2 => "MEDIUM",
+        _ => "LOW"
+    };
+
+    internal static string BuildCompositeKey(string district, string category, string title)
+    {
+        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
+        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
+        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
+        return $"{d}::{c}::{t.GetHashCode():X8}";
+    }
+
+    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    {
+        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
+        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
+        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
+        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+    }
+
+    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    {
+        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
+    };
 }
