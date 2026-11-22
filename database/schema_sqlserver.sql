@@ -32,7 +32,15 @@ CREATE TABLE Users (
     InvitedByUserName NVARCHAR(200) NOT NULL DEFAULT '',
     InvitationCode NVARCHAR(100) NOT NULL DEFAULT '',
     ProfilePhotoUrl NVARCHAR(MAX) NOT NULL DEFAULT '',
-    LegacySessionToken NVARCHAR(256) NOT NULL DEFAULT '',
+    QuickUnlockEnabled BIT NOT NULL DEFAULT 0,
+    QuickUnlockMode NVARCHAR(30) NOT NULL DEFAULT '',
+    QuickUnlockSecretHash NVARCHAR(256) NOT NULL DEFAULT '',
+    QuickUnlockSecretSalt NVARCHAR(128) NOT NULL DEFAULT '',
+    QuickUnlockDeviceTokenHash NVARCHAR(256) NOT NULL DEFAULT '',
+    QuickUnlockDeviceTokenSalt NVARCHAR(128) NOT NULL DEFAULT '',
+    QuickUnlockBiometricCredentialId NVARCHAR(512) NOT NULL DEFAULT '',
+    QuickUnlockFailedAttempts INT NOT NULL DEFAULT 0,
+    QuickUnlockTrustedDevicesJson NVARCHAR(MAX) NOT NULL DEFAULT '[]',
     CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
@@ -339,6 +347,103 @@ CREATE TABLE DonationCampaigns (
     CrisisEventId UNIQUEIDENTIFIER NOT NULL REFERENCES CrisisEvents(Id),
     TargetAmountUsd DECIMAL(18, 2) NOT NULL,
     CollectedAmountUsd DECIMAL(18, 2) NOT NULL,
+    DisbursedAmountUsd DECIMAL(18, 2) NOT NULL,
+    IsActive BIT NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE Donations (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    CampaignId UNIQUEIDENTIFIER NOT NULL REFERENCES DonationCampaigns(Id),
+    DonorUserId UNIQUEIDENTIFIER NULL,
+    DonorName NVARCHAR(200) NOT NULL,
+    DonationType NVARCHAR(50) NOT NULL,
+    MonetaryAmountUsd DECIMAL(18, 2) NOT NULL,
+    MaterialDescription NVARCHAR(500) NOT NULL,
+    MaterialQuantity INT NOT NULL,
+    PaymentGatewayReference NVARCHAR(150) NOT NULL,
+    AllocationPurpose NVARCHAR(300) NOT NULL,
+    IsFlaggedSuspicious BIT NOT NULL,
+    SuspiciousReason NVARCHAR(500) NOT NULL,
+    IsReviewedByHuman BIT NOT NULL,
+    VerificationStatus NVARCHAR(50) NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE Notifications (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    RecipientUserId UNIQUEIDENTIFIER NOT NULL,
+    RecipientContact NVARCHAR(200) NOT NULL,
+    Channel NVARCHAR(50) NOT NULL,
+    LanguageCode NVARCHAR(10) NOT NULL,
+    Subject NVARCHAR(250) NOT NULL,
+    MessageBody NVARCHAR(2000) NOT NULL,
+    IdempotencyKey NVARCHAR(150) NOT NULL,
+    DeliveryStatus NVARCHAR(50) NOT NULL,
+    RetryAttempts INT NOT NULL,
+    ProviderResponse NVARCHAR(500) NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE INDEX IX_Notifications_IdempotencyKey ON Notifications(IdempotencyKey);
+
+CREATE TABLE MappingReferences (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    Label NVARCHAR(200) NOT NULL,
+    ReferenceType NVARCHAR(50) NOT NULL,
+    Latitude FLOAT NOT NULL,
+    Longitude FLOAT NOT NULL,
+    GeoJsonPolygon NVARCHAR(MAX) NOT NULL,
+    CrisisEventId UNIQUEIDENTIFIER NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE AuditEvents (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    EventCategory NVARCHAR(100) NOT NULL,
+    ActionName NVARCHAR(150) NOT NULL,
+    EntityType NVARCHAR(100) NOT NULL,
+    EntityId NVARCHAR(150) NOT NULL,
+    ActorUserId UNIQUEIDENTIFIER NULL,
+    ActorUserName NVARCHAR(200) NOT NULL,
+    ActorRole NVARCHAR(50) NOT NULL,
+    DetailsJson NVARCHAR(MAX) NOT NULL,
+    IpAddress NVARCHAR(50) NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE CampaignExpenditures (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    CampaignId UNIQUEIDENTIFIER NOT NULL REFERENCES DonationCampaigns(Id),
+    AmountUsd DECIMAL(18, 2) NOT NULL,
+    Category NVARCHAR(100) NOT NULL,
+    Description NVARCHAR(500) NOT NULL,
+    RecordedByUserId UNIQUEIDENTIFIER NOT NULL,
+    RecordedByUserName NVARCHAR(200) NOT NULL,
+    ApprovedAtUtc DATETIME2 NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+
+CREATE TABLE OperationalKpiSnapshots (
+    Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+    TotalRequests INT NOT NULL,
+    UnresolvedCasesCount INT NOT NULL,
+    CriticalOpenCasesCount INT NOT NULL,
+    AverageResponseTimeMinutes FLOAT NOT NULL,
+    ResourceUtilisationPercentage FLOAT NOT NULL,
+    ShelterOccupancyPercentage FLOAT NOT NULL,
+    TotalDonationsCollectedUsd DECIMAL(18, 2) NOT NULL,
+    CapturedAtUtc DATETIME2 NOT NULL,
+    CreatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+);
+GO
 
 CREATE TABLE StagingImportBatches (
     BatchId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
