@@ -11,6 +11,8 @@ public enum UserRole
     ShelterAdmin,
     VolunteerCoordinator,
     DonorOfficer,
+    PartnerOfficer,
+    OrganizationAdmin,
     SystemAdmin
 }
 
@@ -103,5 +105,8 @@ public enum NotificationChannel
 public enum NotificationDeliveryStatus
 {
     Queued,
-    Sent
+    Sent,
+    FailedPendingRetry,
+    PermanentlyFailed,
+    SkippedDuplicate
 }
