@@ -55,36 +55,56 @@ public record ShelterAllocatedEvent(
     int AllocatedMembersCount
 ) : IDomainEvent
 {
+    public string EventType => nameof(ShelterAllocatedEvent);
+}
 
-internal static class LegacyCrisisDraftMapper
+public record ResourceShortageDetectedEvent(
+    Guid EventId,
+    DateTime OccurredAtUtc,
+    Guid ResourceItemId,
+    string ResourceName,
+    int AvailableQuantity,
+    int TotalCompetingDemand
+) : IDomainEvent
 {
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    public string EventType => nameof(ResourceShortageDetectedEvent);
+}
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
-    }
+public record RequestStatusChangedEvent(
+    Guid EventId,
+    DateTime OccurredAtUtc,
+    Guid RequestId,
+    Guid CitizenUserId,
+    string ReferenceCode,
+    string NewStatus,
+    string PreferredLanguage,
+    string Note
+) : IDomainEvent
+{
+    public string EventType => nameof(RequestStatusChangedEvent);
+}
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
-    }
+public record VolunteerAssignedEvent(
+    Guid EventId,
+    DateTime OccurredAtUtc,
+    Guid AssignmentId,
+    Guid VolunteerUserId,
+    string VolunteerName,
+    string TaskTitle
+) : IDomainEvent
+{
+    public string EventType => nameof(VolunteerAssignedEvent);
+}
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+public record PublicAlertBroadcastEvent(
+    Guid EventId,
+    DateTime OccurredAtUtc,
+    Guid AlertId,
+    Guid CrisisEventId,
+    string Title,
+    string SeverityLevel,
+    string Message
+) : IDomainEvent
+{
+    public string EventType => nameof(PublicAlertBroadcastEvent);
 }
