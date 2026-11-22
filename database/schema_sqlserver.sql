@@ -444,21 +444,3 @@ CREATE TABLE OperationalKpiSnapshots (
     UpdatedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
 GO
-
-CREATE TABLE StagingImportBatches (
-    BatchId UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
-    SourceSystem NVARCHAR(100) NOT NULL,
-    ImportedRowCount INT NOT NULL DEFAULT 0,
-    StartedAtUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CompletedAtUtc DATETIME2 NULL,
-    ValidationSummary NVARCHAR(500) NOT NULL DEFAULT ''
-);
-
-CREATE TABLE LegacyDistrictLookups (
-    DistrictCode NVARCHAR(16) NOT NULL PRIMARY KEY,
-    ProvinceName NVARCHAR(100) NOT NULL,
-    DistrictName NVARCHAR(100) NOT NULL,
-    DefaultLat FLOAT NOT NULL,
-    DefaultLon FLOAT NOT NULL,
-    IsActive BIT NOT NULL DEFAULT 1
-);
