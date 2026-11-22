@@ -91,5 +91,54 @@ public class EfUnitOfWork : IUnitOfWork
     public IRepository<AppUser> Users { get; }
     public IRepository<RolePermission> RolePermissions { get; }
     public IRepository<HouseholdProfile> Households { get; }
+    public IRepository<CrisisEvent> CrisisEvents { get; }
+    public IRepository<OperationalArea> OperationalAreas { get; }
+    public IRepository<PublicAlert> PublicAlerts { get; }
+    public IRepository<AssistanceRequest> AssistanceRequests { get; }
+    public IRepository<RequestHistory> RequestHistories { get; }
+    public IRepository<RequestFeedback> RequestFeedbacks { get; }
+    public IRepository<AiRecommendation> AiRecommendations { get; }
+    public IRepository<HumanGovernanceDecision> GovernanceDecisions { get; }
+    public IRepository<Shelter> Shelters { get; }
+    public IRepository<ShelterAllocation> ShelterAllocations { get; }
+    public IRepository<ResourceItem> Resources { get; }
+    public IRepository<ResourceAllocation> ResourceAllocations { get; }
+    public IRepository<DispatchRecord> DispatchRecords { get; }
+    public IRepository<PartnerAidRequest> PartnerAidRequests { get; }
+    public IRepository<VolunteerProfile> Volunteers { get; }
+    public IRepository<VolunteerTaskAssignment> VolunteerAssignments { get; }
+    public IRepository<DonationCampaign> DonationCampaigns { get; }
+    public IRepository<DonationRecord> Donations { get; }
+    public IRepository<NotificationRecord> Notifications { get; }
+    public IRepository<MappingReference> MappingReferences { get; }
+    public IRepository<AuditEventRecord> AuditEvents { get; }
+    public IRepository<CampaignExpenditure> CampaignExpenditures { get; }
+    public IRepository<OperationalKpiSnapshot> OperationalKpiSnapshots { get; }
+
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken = default)
+    {
+        var providerName = _dbContext.Database.ProviderName ?? string.Empty;
+        if (providerName.Contains("InMemory", StringComparison.OrdinalIgnoreCase))
+        {
+            await operation();
+            return;
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            await operation();
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }
