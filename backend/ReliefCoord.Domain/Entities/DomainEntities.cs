@@ -206,6 +206,7 @@ public class Shelter : BaseEntity
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public int TotalCapacity { get; set; }
+    [ConcurrencyCheck]
     public int CurrentOccupancy { get; set; }
     public bool IsWheelchairAccessible { get; set; }
     public bool HasMedicalFacility { get; set; }
@@ -286,37 +287,115 @@ public class PartnerAidRequest : BaseEntity
 }
 
 public class VolunteerProfile : BaseEntity
+{
+    public Guid UserId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string SkillsCsv { get; set; } = string.Empty;
+    public string LanguagesCsv { get; set; } = "en";
+    public bool IsVerified { get; set; } = true;
+    public bool IsAvailable { get; set; } = true;
+    public string AvailabilitySchedule { get; set; } = "Weekdays & Emergency On-Call";
+    public double CurrentLatitude { get; set; }
+    public double CurrentLongitude { get; set; }
+    public int CompletedTasksCount { get; set; }
 }
 
-internal static class LegacyCrisisDraftMapper
+public class VolunteerTaskAssignment : BaseEntity
 {
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    public Guid VolunteerProfileId { get; set; }
+    public Guid? AssistanceRequestId { get; set; }
+    public string TaskTitle { get; set; } = string.Empty;
+    public string RequiredSkill { get; set; } = string.Empty;
+    public double AiMatchScore { get; set; }
+    public double DistanceKm { get; set; }
+    public string Status { get; set; } = "Assigned";
+    public string CompletionNotes { get; set; } = string.Empty;
+    public DateTime? CompletedAtUtc { get; set; }
+}
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
-    }
+public class DonationCampaign : BaseEntity
+{
+    public string Title { get; set; } = string.Empty;
+    public Guid CrisisEventId { get; set; }
+    public decimal TargetAmountUsd { get; set; }
+    public decimal CollectedAmountUsd { get; set; }
+    public decimal DisbursedAmountUsd { get; set; }
+    public bool IsActive { get; set; } = true;
+}
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
-    }
+public class DonationRecord : BaseEntity
+{
+    public Guid CampaignId { get; set; }
+    public Guid? DonorUserId { get; set; }
+    public string DonorName { get; set; } = string.Empty;
+    public string DonationType { get; set; } = "Monetary";
+    public decimal MonetaryAmountUsd { get; set; }
+    public string MaterialDescription { get; set; } = string.Empty;
+    public int MaterialQuantity { get; set; }
+    public string PaymentGatewayReference { get; set; } = string.Empty;
+    public string AllocationPurpose { get; set; } = string.Empty;
+    public bool IsFlaggedSuspicious { get; set; }
+    public string SuspiciousReason { get; set; } = string.Empty;
+    public bool IsReviewedByHuman { get; set; }
+    public string VerificationStatus { get; set; } = "Verified";
+}
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+public class NotificationRecord : BaseEntity
+{
+    public Guid RecipientUserId { get; set; }
+    public string RecipientContact { get; set; } = string.Empty;
+    public NotificationChannel Channel { get; set; }
+    public string LanguageCode { get; set; } = "en";
+    public string Subject { get; set; } = string.Empty;
+    public string MessageBody { get; set; } = string.Empty;
+    public string IdempotencyKey { get; set; } = string.Empty;
+    public NotificationDeliveryStatus DeliveryStatus { get; set; } = NotificationDeliveryStatus.Queued;
+    public int RetryAttempts { get; set; }
+    public string ProviderResponse { get; set; } = string.Empty;
+}
+
+public class MappingReference : BaseEntity
+{
+    public string Label { get; set; } = string.Empty;
+    public string ReferenceType { get; set; } = "ServiceCentre";
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string GeoJsonPolygon { get; set; } = string.Empty;
+    public Guid CrisisEventId { get; set; }
+}
+
+public class AuditEventRecord : BaseEntity
+{
+    public string EventCategory { get; set; } = string.Empty;
+    public string ActionName { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public string EntityId { get; set; } = string.Empty;
+    public Guid? ActorUserId { get; set; }
+    public string ActorUserName { get; set; } = string.Empty;
+    public string ActorRole { get; set; } = string.Empty;
+    public string DetailsJson { get; set; } = "{}";
+    public string IpAddress { get; set; } = "127.0.0.1";
+}
+
+public class CampaignExpenditure : BaseEntity
+{
+    public Guid CampaignId { get; set; }
+    public decimal AmountUsd { get; set; }
+    public string Category { get; set; } = "ReliefOperations";
+    public string Description { get; set; } = string.Empty;
+    public Guid RecordedByUserId { get; set; }
+    public string RecordedByUserName { get; set; } = string.Empty;
+    public DateTime ApprovedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public class OperationalKpiSnapshot : BaseEntity
+{
+    public int TotalRequests { get; set; }
+    public int UnresolvedCasesCount { get; set; }
+    public int CriticalOpenCasesCount { get; set; }
+    public double AverageResponseTimeMinutes { get; set; }
+    public double ResourceUtilisationPercentage { get; set; }
+    public double ShelterOccupancyPercentage { get; set; }
+    public decimal TotalDonationsCollectedUsd { get; set; }
+    public DateTime CapturedAtUtc { get; set; } = DateTime.UtcNow;
 }
