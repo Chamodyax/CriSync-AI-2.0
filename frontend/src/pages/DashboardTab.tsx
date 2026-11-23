@@ -872,5 +872,472 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   </div>
                   <div>
                     <label className="block font-bold text-zinc-300 mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      name="crisync_invite_staff_name"
+                      autoComplete="off"
+                      required
+                      value={inviteForm.fullName}
+                      onChange={(e) => setInviteForm({ ...inviteForm, fullName: e.target.value })}
+                      placeholder="Officer's full name"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Work Email</label>
+                    <input
+                      type="email"
+                      name="crisync_invite_staff_email"
+                      autoComplete="off"
+                      required
+                      readOnly={!unlockedFields.inviteEmail}
+                      onFocus={() => unlockField('inviteEmail')}
+                      onMouseDown={() => unlockField('inviteEmail')}
+                      onKeyDown={() => unlockField('inviteEmail')}
+                      value={inviteForm.email}
+                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                      placeholder="officer@organisation.org"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      name="crisync_invite_staff_phone"
+                      autoComplete="off"
+                      value={inviteForm.phoneNumber}
+                      onChange={(e) => setInviteForm({ ...inviteForm, phoneNumber: e.target.value })}
+                      placeholder="+94 77 123 4567"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Temporary Password</label>
+                    <input
+                      type="text"
+                      name="crisync_invite_staff_password"
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      readOnly={!unlockedFields.invitePassword}
+                      onFocus={() => unlockField('invitePassword')}
+                      onMouseDown={() => unlockField('invitePassword')}
+                      onKeyDown={() => unlockField('invitePassword')}
+                      value={inviteForm.temporaryPassword}
+                      onChange={(e) => setInviteForm({ ...inviteForm, temporaryPassword: e.target.value })}
+                      placeholder="Minimum 6 characters"
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Organisation</label>
+                    <select
+                      value={inviteForm.organisationId}
+                      onChange={(e) => setInviteForm({ ...inviteForm, organisationId: e.target.value })}
+                      className="rsvp-input"
+                    >
+                      <option value="">Independent / Coordinating Team</option>
+                      {organisations.map((org) => (
+                        <option key={org.id} value={org.id}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {lastInvitationResult && (
+                    <div className="md:col-span-3 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-200 font-mono text-[11px]">
+                      Invitation Issued ({lastInvitationResult.invitationCode}) • {lastInvitationResult.fullName} ({lastInvitationResult.role}) • Email: {lastInvitationResult.email} • Password: {lastInvitationResult.temporaryPassword}
+                    </div>
+                  )}
+                  <div className="md:col-span-3 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={commandSubmitting}
+                      className="keep-white px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span>{commandSubmitting ? 'Sending Invite...' : 'Issue Staff Invitation & Credentials'}</span>
+                    </button>
+                  </div>
+                </form>
+              ) : commandTab === 'alert' ? (
+                <form onSubmit={handleBroadcastAlert} className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Target Crisis Event</label>
+                    <select
+                      value={activeAlertCrisisId}
+                      onChange={(e) => setAlertCrisisId(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      {crises.length === 0 && (
+                        <option value="">No Crisis Events Yet — Declare a Crisis First</option>
+                      )}
+                      {crises.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title} ({c.severity})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Alert Severity Level</label>
+                    <select
+                      value={alertSeverity}
+                      onChange={(e) => setAlertSeverity(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      <option value="Advisory">Advisory (Stay Informed)</option>
+                      <option value="Warning">Warning (Prepare to Evacuate)</option>
+                      <option value="Critical">Critical (Immediate Evacuation)</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block font-bold text-zinc-300 mb-1">Public Alert Headline</label>
+                    <input
+                      type="text"
+                      required
+                      value={alertTitle}
+                      onChange={(e) => setAlertTitle(e.target.value)}
+                      placeholder="Short clear public emergency headline"
+                      className="rsvp-input"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Flash Flood Evacuation Warning — Low-Lying Areas Near Colombo Port
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Broadcast Message</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={alertMessage}
+                      onChange={(e) => setAlertMessage(e.target.value)}
+                      placeholder="Describe the danger zone and immediate public situation"
+                      className="rsvp-input resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: River levels exceeded danger mark at 14:30. Residents in Zone A should move to higher ground.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Safety Guidance for Citizens</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={alertGuidance}
+                      onChange={(e) => setAlertGuidance(e.target.value)}
+                      placeholder="Actionable checklist for families and caregivers"
+                      className="rsvp-input resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Switch off main breaker, pack medicines and IDs, proceed to nearest designated school shelter.
+                    </p>
+                  </div>
+                  <div className="md:col-span-2 flex justify-end">
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={commandSubmitting || !activeAlertCrisisId}
+                      className="keep-white px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>{commandSubmitting ? 'Broadcasting...' : 'Broadcast Public Alert Now'}</span>
+                    </motion.button>
+                  </div>
+                </form>
+              ) : commandTab === 'operational-zone' && canDeclareOrAlert && onCreateOperationalArea ? (
+                <form onSubmit={handleCreateZoneSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Crisis Event</label>
+                    <select
+                      value={zoneForm.crisisId || crises[0]?.id || ''}
+                      onChange={(e) => setZoneForm({ ...zoneForm, crisisId: e.target.value })}
+                      className="rsvp-input"
+                    >
+                      {crises.map((c) => (
+                        <option key={c.id} value={c.id}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Operational Zone Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={zoneForm.zoneName}
+                      onChange={(e) => setZoneForm({ ...zoneForm, zoneName: e.target.value })}
+                      placeholder="e.g., Sector Delta - Pelmadulla Valley"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">District</label>
+                    <input
+                      type="text"
+                      required
+                      value={zoneForm.district}
+                      onChange={(e) => setZoneForm({ ...zoneForm, district: e.target.value })}
+                      placeholder="e.g., Ratnapura"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Latitude / Longitude</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={zoneForm.latitude}
+                        onChange={(e) => setZoneForm({ ...zoneForm, latitude: Number(e.target.value) })}
+                        className="rsvp-input font-mono"
+                      />
+                      <input
+                        type="number"
+                        step="0.0001"
+                        value={zoneForm.longitude}
+                        onChange={(e) => setZoneForm({ ...zoneForm, longitude: Number(e.target.value) })}
+                        className="rsvp-input font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Radius (km) &amp; Affected Pop.</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        value={zoneForm.coverageRadiusKm}
+                        onChange={(e) => setZoneForm({ ...zoneForm, coverageRadiusKm: Number(e.target.value) })}
+                        className="rsvp-input font-mono"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        value={zoneForm.estimatedAffectedPopulation}
+                        onChange={(e) => setZoneForm({ ...zoneForm, estimatedAffectedPopulation: Number(e.target.value) })}
+                        className="rsvp-input font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Risk Level &amp; Assigned Agency</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        value={zoneForm.riskLevel}
+                        onChange={(e) => setZoneForm({ ...zoneForm, riskLevel: e.target.value })}
+                        className="rsvp-input"
+                      >
+                        <option value="Moderate">Moderate</option>
+                        <option value="High">High</option>
+                        <option value="Critical">Critical</option>
+                      </select>
+                      <select
+                        value={zoneForm.assignedOrganisationId}
+                        onChange={(e) => setZoneForm({ ...zoneForm, assignedOrganisationId: e.target.value })}
+                        className="rsvp-input"
+                      >
+                        <option value="">Any Agency</option>
+                        {organisations.map((org) => (
+                          <option key={org.id} value={org.id}>{org.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="md:col-span-3 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={commandSubmitting}
+                      className="keep-white px-5 py-2.5 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      <span>{commandSubmitting ? 'Saving...' : 'Create Operational Zone'}</span>
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleRegisterCrisis} className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                  <div className="md:col-span-2">
+                    <label className="block font-bold text-zinc-300 mb-1">Crisis Title</label>
+                    <input
+                      type="text"
+                      required
+                      value={crisisTitle}
+                      onChange={(e) => setCrisisTitle(e.target.value)}
+                      placeholder="Official disaster or emergency operation name"
+                      className="rsvp-input"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Western Province Monsoon Flood Response 2026
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Crisis Type</label>
+                    <select
+                      value={crisisType}
+                      onChange={(e) => setCrisisType(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      <option value="Flood">Flood</option>
+                      <option value="Landslide">Landslide</option>
+                      <option value="Earthquake">Earthquake</option>
+                      <option value="SevereStorm">Severe Storm</option>
+                      <option value="DiseaseOutbreak">Disease Outbreak</option>
+                      <option value="MassDisplacement">Mass Displacement</option>
+                      <option value="Other">Other Emergency</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Severity Rating</label>
+                    <select
+                      value={crisisSeverity}
+                      onChange={(e) => setCrisisSeverity(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      <option value="Low">Low</option>
+                      <option value="Moderate">Moderate</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical</option>
+                      <option value="Catastrophic">Catastrophic</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Country</label>
+                    <input
+                      type="text"
+                      required
+                      value={crisisCountry}
+                      onChange={(e) => setCrisisCountry(e.target.value)}
+                      placeholder="Country name"
+                      className="rsvp-input"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Sri Lanka
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Affected Region / Districts</label>
+                    <input
+                      type="text"
+                      required
+                      value={crisisRegion}
+                      onChange={(e) => setCrisisRegion(e.target.value)}
+                      placeholder="Districts, provinces, or river basin"
+                      className="rsvp-input"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Colombo & Gampaha Districts
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Center Latitude</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={crisisLat}
+                      onChange={(e) => setCrisisLat(Number(e.target.value))}
+                      className="rsvp-input font-mono"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: 6.9271 (Decimal GPS Latitude)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Center Longitude</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={crisisLon}
+                      onChange={(e) => setCrisisLon(Number(e.target.value))}
+                      className="rsvp-input font-mono"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: 79.8612 (Decimal GPS Longitude)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Impact Radius (km)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={crisisRadiusKm}
+                      onChange={(e) => setCrisisRadiusKm(Number(e.target.value))}
+                      className="rsvp-input font-mono"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: 15 km emergency perimeter
+                    </p>
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="block font-bold text-zinc-300 mb-1">Operational Situation Summary</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={crisisDescription}
+                      onChange={(e) => setCrisisDescription(e.target.value)}
+                      placeholder="Summarize initial field assessment and priority response needs"
+                      className="rsvp-input resize-none"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: Heavy rainfall caused localized flash flooding; rescue boats, clean water, and emergency medical packs needed.
+                    </p>
+                  </div>
+                  <div className="md:col-span-3 flex justify-end">
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      type="submit"
+                      disabled={commandSubmitting}
+                      className="keep-white px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>{commandSubmitting ? 'Declaring...' : 'Declare & Activate Crisis Event'}</span>
+                    </motion.button>
+                  </div>
+                </form>
+              )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      <div className="bento-glass rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 border border-indigo-500/25 text-xs">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="inline-flex items-center gap-1.5 font-extrabold uppercase tracking-wider text-emerald-300">
+            <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-spin' : 'bg-emerald-400 animate-ping'}`} />
+            Live Command Telemetry
+          </span>
+          <span className="text-zinc-400 hidden sm:inline">•</span>
+          <span className="text-zinc-300 font-semibold hidden sm:inline">
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
