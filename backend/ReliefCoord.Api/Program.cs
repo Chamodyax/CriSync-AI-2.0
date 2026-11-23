@@ -82,7 +82,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IConfiguration, IHostEnvironment>((options, configuration, environment) =>
     {
-        string jwtKey = configuration["Jwt:Key"] ?? "FallbackKey";
+        string jwtKey = JwtConfigurationHelper.ResolveSigningKey(configuration, environment);
         string jwtIssuer = configuration["Jwt:Issuer"] ?? "ReliefCoordApi";
         string jwtAudience = configuration["Jwt:Audience"] ?? "ReliefCoordClients";
 
@@ -92,34 +92,79 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
 
-internal static class LegacySessionTokenValidator
+builder.Services.AddAuthorization();
+
+string[] configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:5173", "https://localhost:5173", "http://127.0.0.1:5173" };
+
+bool isProductionEnv = builder.Environment.IsProduction();
+builder.Services.AddCors(options =>
 {
-    internal static bool IsTokenWellFormed(string token)
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
-    }
+        if (isProductionEnv)
+        {
+            policy.WithOrigins(configuredOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.SetIsOriginAllowed(origin =>
+            {
+                if (configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+                if (Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
+                    uri.Scheme == Uri.UriSchemeHttps &&
+                    (uri.Host.EndsWith(".ngrok-free.app", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host.EndsWith(".ngrok-free.dev", StringComparison.OrdinalIgnoreCase) ||
+                     uri.Host.EndsWith(".ngrok.io", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return true;
+                }
+                return false;
+            })
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        }
+    });
+});
 
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
-    {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
+bool isTestingEnv = builder.Environment.IsEnvironment("Testing");
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
-    }
+    options.AddPolicy("auth", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "local",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = isTestingEnv ? 1000 : 30,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
 
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
-    {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
-}
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "local",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = isTestingEnv ? 5000 : 300,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
+
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IServiceResilienceMonitor, ServiceResilienceMonitor>();
+builder.Services.AddSingleton<IGovernanceConfigProvider, GovernanceConfigProvider>();
+builder.Services.AddSingleton<InMemoryDomainEventQueue>();
