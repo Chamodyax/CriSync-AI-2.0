@@ -1111,36 +1111,363 @@ public class AuthAndUsersController : ControllerBase
     {
         var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var existingList = await _unitOfWork.Households.FindAsync(h => h.UserId == userId, cancellationToken);
+        var profile = existingList.FirstOrDefault();
+
+        if (profile == null)
+        {
+            profile = new HouseholdProfile
+            {
+                UserId = userId,
+                HouseholdHeadName = dto.HouseholdHeadName,
+                TotalMembers = Math.Max(1, dto.TotalMembers),
+                ChildrenCount = dto.ChildrenCount,
+                ElderlyCount = dto.ElderlyCount,
+                HasMobilityNeeds = dto.HasMobilityNeeds,
+                HasChronicMedicalNeeds = dto.HasChronicMedicalNeeds,
+                MedicalNotes = dto.MedicalNotes,
+                PrimaryAddress = dto.PrimaryAddress,
+                Latitude = dto.Latitude,
+                Longitude = dto.Longitude
+            };
+            await _unitOfWork.Households.AddAsync(profile, cancellationToken);
+        }
+        else
+        {
+            profile.HouseholdHeadName = dto.HouseholdHeadName;
+            profile.TotalMembers = Math.Max(1, dto.TotalMembers);
+            profile.ChildrenCount = dto.ChildrenCount;
+            profile.ElderlyCount = dto.ElderlyCount;
+            profile.HasMobilityNeeds = dto.HasMobilityNeeds;
+            profile.HasChronicMedicalNeeds = dto.HasChronicMedicalNeeds;
+            profile.MedicalNotes = dto.MedicalNotes;
+            profile.PrimaryAddress = dto.PrimaryAddress;
+            profile.Latitude = dto.Latitude;
+            profile.Longitude = dto.Longitude;
+            await _unitOfWork.Households.UpdateAsync(profile, cancellationToken);
+        }
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(profile);
     }
-}
 
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
+    [HttpPost("users/register-citizen-behalf")]
+    [Authorize(Roles = "CaseManager,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult<AdminUserSummaryDto>> RegisterCitizenOnBehalf(
+        [FromBody] RegisterCitizenOnBehalfDto dto,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+        if (string.IsNullOrWhiteSpace(dto.FullName) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+        {
+            return BadRequest(new { message = "Citizen full name, email/identifier, and password are required." });
+        }
+
+        string normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var existing = await _unitOfWork.Users.FindAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+        if (existing.Any())
+        {
+            return Conflict(new { message = "A citizen account with this email already exists." });
+        }
+
+        var actorName = User.FindFirstValue(ClaimTypes.Name) ?? "Case Manager";
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        var (hash, salt) = HumanitarianOperationsService.HashPassword(dto.Password);
+
+        var citizenUser = new AppUser
+        {
+            FullName = dto.FullName.Trim(),
+            Email = normalizedEmail,
+            PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty,
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            Role = UserRole.Citizen,
+            PreferredLanguage = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? "si" : dto.PreferredLanguage.Trim(),
+            IsActive = true,
+            AccountStatus = "Active",
+            InvitedByUserName = $"Registered on behalf by {actorName}"
+        };
+
+        await _unitOfWork.Users.AddAsync(citizenUser, cancellationToken);
+
+        var household = new HouseholdProfile
+        {
+            UserId = citizenUser.Id,
+            HouseholdHeadName = citizenUser.FullName,
+            TotalMembers = Math.Max(1, dto.TotalMembers),
+            ChildrenCount = Math.Max(0, dto.ChildrenCount),
+            ElderlyCount = Math.Max(0, dto.ElderlyCount),
+            HasMobilityNeeds = dto.HasMobilityNeeds,
+            HasChronicMedicalNeeds = dto.HasChronicMedicalNeeds,
+            MedicalNotes = dto.MedicalNotes?.Trim() ?? string.Empty,
+            PrimaryAddress = dto.PrimaryAddress?.Trim() ?? string.Empty,
+            Latitude = 6.9271,
+            Longitude = 79.8612
+        };
+
+        await _unitOfWork.Households.AddAsync(household, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "CitizenOnboarding",
+            ActionName = "CaseManager_RegisteredCitizenOnBehalf",
+            EntityType = nameof(AppUser),
+            EntityId = citizenUser.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = actorName,
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "CaseManager",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { citizenUser.FullName, citizenUser.Email, household.TotalMembers })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(BuildUserSummary(citizenUser, "Citizen / Household Portal"));
     }
 
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    [HttpPost("invitations/invite-staff")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin,EmergencyCoordinator")]
+    public async Task<ActionResult<AdminUserSummaryDto>> InviteOperationalRole(
+        [FromBody] InviteStaffRequestDto dto,
+        CancellationToken cancellationToken)
     {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
+        var callerRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        var actorName = User.FindFirstValue(ClaimTypes.Name) ?? callerRole;
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
 
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
+        if (dto.Role == UserRole.DonorOfficer && callerRole != nameof(UserRole.SystemAdmin))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only the Global System Admin can invite or appoint a Donor / Funding Officer because this role handles financial transactions."
+            });
+        }
+
+        if ((dto.Role == UserRole.SystemAdmin || dto.Role == UserRole.OrganizationAdmin) && callerRole != nameof(UserRole.SystemAdmin))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only a Global System Admin can appoint System Admin or Organization Admin accounts."
+            });
+        }
+
+        if (dto.Role is not (UserRole.CaseManager or UserRole.ShelterAdmin or UserRole.LogisticsManager or UserRole.VolunteerCoordinator or UserRole.DonorOfficer or UserRole.EmergencyCoordinator or UserRole.OrganizationAdmin or UserRole.SystemAdmin))
+        {
+            return BadRequest(new { message = $"Role '{dto.Role}' uses self-registration or citizen-on-behalf registration rather than staff invitation." });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.FullName) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.TemporaryPassword))
+        {
+            return BadRequest(new { message = "Full name, email, and temporary password are required." });
+        }
+
+        if (dto.TemporaryPassword.Trim().Length < 6)
+        {
+            return BadRequest(new { message = "Temporary password must be at least 6 characters." });
+        }
+
+        string normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var existing = await _unitOfWork.Users.FindAsync(u => u.Email.ToLower() == normalizedEmail, cancellationToken);
+        if (existing.Any())
+        {
+            return Conflict(new { message = "An account with this email already exists." });
+        }
+
+        var (allowed, policyError) = await ValidateAdminCountPolicyAsync(dto.Role, true, null, false, cancellationToken);
+        if (!allowed)
+        {
+            return BadRequest(new { message = policyError });
+        }
+
+        string inviteCode = $"INV-{dto.Role.ToString().ToUpperInvariant()[..Math.Min(4, dto.Role.ToString().Length)]}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
+        var (hash, salt) = HumanitarianOperationsService.HashPassword(dto.TemporaryPassword);
+
+        var staffUser = new AppUser
+        {
+            FullName = dto.FullName.Trim(),
+            Email = normalizedEmail,
+            PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty,
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            Role = dto.Role,
+            PreferredLanguage = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? "en" : dto.PreferredLanguage.Trim(),
+            OrganisationId = dto.OrganisationId,
+            IsActive = true,
+            AccountStatus = "Active",
+            InvitedByUserName = actorName,
+            InvitationCode = inviteCode
+        };
+
+        await _unitOfWork.Users.AddAsync(staffUser, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "StaffInvitation",
+            ActionName = $"Invited_{dto.Role}",
+            EntityType = nameof(AppUser),
+            EntityId = staffUser.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = actorName,
+            ActorRole = callerRole,
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { staffUser.FullName, staffUser.Email, Role = staffUser.Role.ToString(), inviteCode })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        string orgName = await ResolveOrganisationNameAsync(staffUser, cancellationToken);
+        return Ok(BuildUserSummary(staffUser, orgName));
     }
 
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    [HttpGet("admin/users")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult<IEnumerable<AdminUserSummaryDto>>> GetAllUsers(CancellationToken cancellationToken)
     {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
+        var users = await _unitOfWork.Users.GetAllAsync(cancellationToken);
+        var orgs = await _unitOfWork.Organisations.GetAllAsync(cancellationToken);
+        var orgMap = orgs.ToDictionary(o => o.Id, o => o.Name);
+
+        var result = users
+            .OrderByDescending(u => u.Role == UserRole.SystemAdmin)
+            .ThenByDescending(u => u.Role == UserRole.OrganizationAdmin)
+            .ThenBy(u => u.FullName)
+            .Select(u => BuildUserSummary(
+                u,
+                u.OrganisationId.HasValue && orgMap.TryGetValue(u.OrganisationId.Value, out var orgName)
+                    ? orgName
+                    : u.Role switch
+                    {
+                        UserRole.Citizen => "Citizen / Household Portal",
+                        UserRole.Donor => "Public Humanitarian Donor",
+                        UserRole.Volunteer => "Community Volunteer Roster",
+                        _ => "Independent Responder"
+                    }))
+            .ToList();
+
+        return Ok(result);
+    }
+
+    [HttpPost("admin/users")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult<AdminUserSummaryDto>> CreateUserByAdmin([FromBody] AdminCreateUserDto dto, CancellationToken cancellationToken)
+    {
+        var callerRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        if (dto.Role == UserRole.DonorOfficer && callerRole != nameof(UserRole.SystemAdmin))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only the Global System Admin can appoint a Donor / Funding Officer."
+            });
+        }
+
+        if ((dto.Role == UserRole.SystemAdmin || dto.Role == UserRole.OrganizationAdmin) && callerRole != nameof(UserRole.SystemAdmin))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only a Global System Admin can appoint System Admin or Organization Admin accounts."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.FullName) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+        {
+            return BadRequest(new { message = "Full name, email, and password are required." });
+        }
+
+        if (dto.Password.Trim().Length < 6)
+        {
+            return BadRequest(new { message = "Password must be at least 6 characters long." });
+        }
+
+        var (allowed, policyError) = await ValidateAdminCountPolicyAsync(dto.Role, true, null, false, cancellationToken);
+        if (!allowed)
+        {
+            return BadRequest(new { message = policyError });
+        }
+
+        string normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var existing = await _unitOfWork.Users.FindAsync(
+            u => u.Email.ToLower() == normalizedEmail,
+            cancellationToken);
+
+        if (existing.Any())
+        {
+            return Conflict(new { message = "An account with this email already exists." });
+        }
+
+        var actorName = User.FindFirstValue(ClaimTypes.Name) ?? callerRole;
+        var (hash, salt) = HumanitarianOperationsService.HashPassword(dto.Password);
+        var user = new AppUser
+        {
+            FullName = dto.FullName.Trim(),
+            Email = normalizedEmail,
+            PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty,
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            Role = dto.Role,
+            PreferredLanguage = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? "en" : dto.PreferredLanguage.Trim(),
+            OrganisationId = dto.Role is UserRole.Citizen or UserRole.Donor or UserRole.Volunteer ? null : dto.OrganisationId,
+            IsActive = true,
+            AccountStatus = "Active",
+            InvitedByUserName = actorName
+        };
+
+        await _unitOfWork.Users.AddAsync(user, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "UserManagement",
+            ActionName = "Admin_CreatedUser",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = actorName,
+            ActorRole = callerRole,
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                user.FullName,
+                user.Email,
+                Role = user.Role.ToString()
+            })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string organisationName = await ResolveOrganisationNameAsync(user, cancellationToken);
+        return Ok(BuildUserSummary(user, organisationName));
+    }
+
+    [HttpPut("admin/users/{id:guid}")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult<AdminUserSummaryDto>> UpdateUser(Guid id, [FromBody] AdminUpdateUserDto dto, CancellationToken cancellationToken)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(id, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User account not found." });
+        }
+
+        var callerRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        if (callerRole != nameof(UserRole.SystemAdmin) &&
+            (user.Role == UserRole.SystemAdmin || dto.Role == UserRole.SystemAdmin || dto.Role == UserRole.DonorOfficer))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only a Global System Admin can modify Global System Admin or Donor / Funding Officer accounts."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.FullName) || string.IsNullOrWhiteSpace(dto.Email))
+        {
+            return BadRequest(new { message = "Full name and email are required." });
+        }
+
+        string normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var conflicts = await _unitOfWork.Users.FindAsync(
+            u => u.Email.ToLower() == normalizedEmail && u.Id != id,
+            cancellationToken);
+
+        if (conflicts.Any())
+        {
+    }
 }
