@@ -96,34 +96,84 @@ export const PatternLockPad: React.FC<PatternLockPadProps> = ({
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="font-bold text-zinc-300">{label}</span>
         <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-indigo-300">
+            {selectedNodes.length} dot{selectedNodes.length === 1 ? '' : 's'}
+          </span>
+          {selectedNodes.length > 0 && (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                sequenceRef.current = [];
+                onChange('');
+              }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white/[0.06] hover:bg-white/10 border border-white/10 text-[11px] font-bold text-zinc-300 transition disabled:opacity-50"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div
+        ref={gridRef}
+        onPointerMove={handlePointerMoveGrid}
+        className="relative mx-auto w-[216px] h-[216px] p-2 rounded-2xl bg-black/25 border border-white/10 touch-none select-none"
+      >
+        <svg
+          viewBox="0 0 300 300"
+          className="pointer-events-none absolute inset-0 w-full h-full z-0"
+        >
+          {selectedNodes.map((node, index) => {
+            if (index === 0) return null;
+            const prev = NODE_COORDS[selectedNodes[index - 1]];
+            const curr = NODE_COORDS[node];
+            if (!prev || !curr) return null;
+            return (
+              <line
+                key={`${selectedNodes[index - 1]}-${node}`}
+                x1={prev.x}
+                y1={prev.y}
+                x2={curr.x}
+                y2={curr.y}
+                stroke="#6366f1"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeOpacity="0.85"
+              />
+            );
+          })}
+        </svg>
+
+        <div className="relative z-10 grid grid-cols-3 grid-rows-3 w-full h-full place-items-center">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((nodeId) => {
+            const orderIdx = selectedNodes.indexOf(nodeId);
+            const active = orderIdx !== -1;
+            return (
+              <button
+                key={nodeId}
+                type="button"
+                data-pattern-node={nodeId}
+                aria-label={`Pattern dot ${nodeId}`}
+                disabled={disabled}
+                onPointerDown={(e) => handlePointerDownNode(nodeId, e)}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                  active
+                    ? 'bg-indigo-500/25 border-2 border-indigo-400 shadow-[0_0_16px_rgba(99,102,241,0.5)] scale-105'
+                    : 'bg-white/[0.04] border border-white/20 hover:border-indigo-400/60'
+                }`}
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded-full transition-all ${
+                    active ? 'bg-indigo-400 scale-110' : 'bg-zinc-400/70'
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
