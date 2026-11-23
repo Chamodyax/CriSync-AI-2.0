@@ -375,3 +375,198 @@ public record ServiceIntegrationSettingsDto(
     double AiConfidenceThreshold,
     bool SimulateExternalAiFailure,
     string SmsProviderName,
+    string SmsSenderId,
+    int SmsIdempotencyWindowMinutes,
+    bool SimulateExternalNotificationFailure,
+    string EmailSmtpProvider,
+    string EmailSenderAddress,
+    bool EmailAlertsEnabled,
+    string MappingProviderName,
+    string GeocodingProviderName,
+    bool SimulateExternalMappingFailure
+);
+
+public record AdminCreateUserDto(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    string Password,
+    UserRole Role,
+    Guid? OrganisationId,
+    string PreferredLanguage
+);
+
+public record AdminUpdateUserDto(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    UserRole Role,
+    Guid? OrganisationId,
+    bool IsActive,
+    string? NewPassword
+);
+
+public record UpdateCrisisEventDto(
+    string Title,
+    CrisisType CrisisType,
+    CrisisSeverity Severity,
+    string Region,
+    string Description,
+    double CenterLatitude,
+    double CenterLongitude,
+    double RadiusKm,
+    bool IsActive
+);
+
+public record UpdateShelterDto(
+    string Name,
+    string Address,
+    int TotalCapacity,
+    int CurrentOccupancy,
+    bool IsWheelchairAccessible,
+    bool HasMedicalFacility,
+    bool HasPowerBackup,
+    string Status,
+    double Latitude,
+    double Longitude
+);
+
+public record UpdateResourceItemDto(
+    string Name,
+    RequestCategory Category,
+    string WarehouseName,
+    string Unit,
+    int TotalQuantity,
+    int AvailableQuantity,
+    int ReorderThreshold,
+    double WarehouseLatitude,
+    double WarehouseLongitude
+);
+
+public record CreateCrisisEventDto(
+    [Required, StringLength(250, MinimumLength = 3)] string Title,
+    CrisisType CrisisType,
+    CrisisSeverity Severity,
+    [Required, StringLength(100)] string Country,
+    [Required, StringLength(200)] string Region,
+    [Required, StringLength(2000)] string Description,
+    double CenterLatitude,
+    double CenterLongitude,
+    [Range(1, 2000)] double RadiusKm = 25.0,
+    bool IsActive = true
+);
+
+public record CreatePublicAlertDto(
+    Guid CrisisEventId,
+    [Required, StringLength(250, MinimumLength = 3)] string Title,
+    [Required, StringLength(2000, MinimumLength = 5)] string Message,
+    [Required, StringLength(50)] string SeverityLevel,
+    [StringLength(2000)] string SafetyGuidance = "",
+    string? TranslationsJson = null
+);
+
+public record CreateResourceItemDto(
+    [Required, StringLength(200, MinimumLength = 2)] string Name,
+    RequestCategory Category,
+    [Required, StringLength(50)] string Unit,
+    [Range(1, 10000000)] int TotalQuantity,
+    int? AvailableQuantity = null,
+    [Range(0, 10000000)] int ReorderThreshold = 20,
+    [Required, StringLength(200, MinimumLength = 2)] string WarehouseName = "Central Depot",
+    double WarehouseLatitude = 6.9271,
+    double WarehouseLongitude = 79.8612,
+    bool SupportsColdChain = false,
+    DateTime? ExpiryDateUtc = null,
+    Guid? OwningOrganisationId = null
+);
+
+public record CreateShelterDto(
+    [Required, StringLength(200, MinimumLength = 2)] string Name,
+    Guid? CrisisEventId = null,
+    [Required, StringLength(300, MinimumLength = 3)] string Address = "",
+    double Latitude = 6.9271,
+    double Longitude = 79.8612,
+    [Range(1, 100000)] int TotalCapacity = 100,
+    [Range(0, 100000)] int CurrentOccupancy = 0,
+    bool IsWheelchairAccessible = false,
+    bool HasMedicalFacility = false,
+    bool HasCleanWater = true,
+    bool HasPowerBackup = false,
+    bool HasChildSafeSpace = false,
+    string? AvailableServices = null,
+    string? Status = null,
+    Guid? ManagedByOrganisationId = null
+);
+
+public record UpdateVolunteerAvailabilityDto(
+    bool IsAvailable,
+    [Required, StringLength(200)] string AvailabilitySchedule,
+    double? CurrentLatitude = null,
+    double? CurrentLongitude = null
+);
+
+public record RespondVolunteerAssignmentDto(
+    [Required] string Decision,
+    string? Notes = null
+);
+
+public record CompleteVolunteerAssignmentDto(
+    [Required, StringLength(1000)] string CompletionNotes
+);
+
+public record CreateCampaignExpenditureDto(
+    [Range(0.01, 100000000)] decimal AmountUsd,
+    [Required, StringLength(100)] string Category,
+    [Required, StringLength(500)] string Description
+);
+
+public record RequestShelterSuppliesDto(
+    RequestCategory Category,
+    [Required, StringLength(200)] string ResourceName,
+    [Range(1, 1000000)] int QuantityNeeded,
+    [Required, StringLength(1000)] string Justification
+);
+
+public record ReplenishResourceDto(
+    [Range(1, 1000000)] int AddedQuantity,
+    string? SourceNote = null
+);
+
+public record CreatePartnerAidRequestDto(
+    RequestCategory NeededCategory,
+    [Required, StringLength(200)] string ResourceName,
+    [Range(1, 1000000)] int QuantityNeeded,
+    [Required, StringLength(1000)] string Justification,
+
+internal static class LegacyCrisisDraftMapper
+{
+    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    {
+        >= 5 => "LIFE_THREATENING",
+        4 => "CRITICAL",
+        3 => "HIGH",
+        2 => "MEDIUM",
+        _ => "LOW"
+    };
+
+    internal static string BuildCompositeKey(string district, string category, string title)
+    {
+        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
+        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
+        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
+        return $"{d}::{c}::{t.GetHashCode():X8}";
+    }
+
+    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    {
+        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
+        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
+        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
+        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+    }
+
+    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    {
+        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
+    };
+}
