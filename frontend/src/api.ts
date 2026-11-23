@@ -23,7 +23,7 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
-    if (false) {
+    if (response.status === 401 && token && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('crisync:unauthorized'));
     }
     const errBody = await response.json().catch(() => ({ message: response.statusText }));
@@ -32,32 +32,3 @@ export async function apiFetch<T>(
 
   return response.json();
 }
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
