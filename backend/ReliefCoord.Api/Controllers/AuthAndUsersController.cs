@@ -1469,5 +1469,354 @@ public class AuthAndUsersController : ControllerBase
 
         if (conflicts.Any())
         {
+            return Conflict(new { message = "Another account already uses this email address." });
+        }
+
+        bool isDefaultAdmin = user.Email.Equals("admin@crisync.org", StringComparison.OrdinalIgnoreCase);
+        var nextRole = isDefaultAdmin ? UserRole.SystemAdmin : dto.Role;
+        var nextActive = isDefaultAdmin || dto.IsActive;
+
+        var (allowed, policyError) = await ValidateAdminCountPolicyAsync(nextRole, nextActive, user.Role, user.IsActive, cancellationToken);
+        if (!allowed)
+        {
+            return BadRequest(new { message = policyError });
+        }
+
+        user.FullName = dto.FullName.Trim();
+        user.PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty;
+        user.OrganisationId = nextRole is UserRole.Citizen or UserRole.Donor or UserRole.Volunteer ? null : dto.OrganisationId;
+
+        if (!isDefaultAdmin)
+        {
+            user.Email = normalizedEmail;
+            user.Role = nextRole;
+            user.IsActive = nextActive;
+            if (user.IsActive && user.AccountStatus == "Suspended")
+            {
+                user.AccountStatus = "Active";
+            }
+            else if (!user.IsActive)
+            {
+                user.AccountStatus = "Suspended";
+            }
+        }
+        else
+        {
+            user.Role = UserRole.SystemAdmin;
+            user.IsActive = true;
+            user.AccountStatus = "Active";
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.NewPassword))
+        {
+            var (hash, salt) = HumanitarianOperationsService.HashPassword(dto.NewPassword);
+            user.PasswordHash = hash;
+            user.PasswordSalt = salt;
+        }
+
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "UserManagement",
+            ActionName = "Admin_UpdatedUser",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "SystemAdmin",
+            ActorRole = callerRole,
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                user.FullName,
+                user.Email,
+                Role = user.Role.ToString(),
+                user.IsActive,
+                PasswordReset = !string.IsNullOrWhiteSpace(dto.NewPassword)
+            })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string organisationName = await ResolveOrganisationNameAsync(user, cancellationToken);
+        return Ok(BuildUserSummary(user, organisationName));
     }
+
+    [HttpDelete("admin/users/{id:guid}")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> DeleteUser(Guid id, CancellationToken cancellationToken)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(id, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User account not found." });
+        }
+
+        var callerRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        if (callerRole != nameof(UserRole.SystemAdmin) && (user.Role == UserRole.SystemAdmin || user.Role == UserRole.DonorOfficer))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Only a Global System Admin can remove System Admin or Donor Officer accounts."
+            });
+        }
+
+        var currentActorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorGuid) ? actorGuid : Guid.Empty;
+
+        if (user.Email.Equals("admin@crisync.org", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "The primary default System Administrator account cannot be deleted." });
+        }
+
+        if (user.Id == currentActorId)
+        {
+            return BadRequest(new { message = "You cannot delete the currently signed-in administrator account." });
+        }
+
+        var (allowed, policyError) = await ValidateAdminCountPolicyAsync(user.Role, false, user.Role, user.IsActive, cancellationToken);
+        if (!allowed)
+        {
+            return BadRequest(new { message = policyError });
+        }
+
+        var households = await _unitOfWork.Households.FindAsync(h => h.UserId == id, cancellationToken);
+        foreach (var h in households)
+        {
+            await _unitOfWork.Households.DeleteAsync(h, cancellationToken);
+        }
+
+        var volunteers = await _unitOfWork.Volunteers.FindAsync(v => v.UserId == id, cancellationToken);
+        foreach (var v in volunteers)
+        {
+            var assignments = await _unitOfWork.VolunteerAssignments.FindAsync(a => a.VolunteerProfileId == v.Id, cancellationToken);
+            foreach (var a in assignments)
+            {
+                await _unitOfWork.VolunteerAssignments.DeleteAsync(a, cancellationToken);
+            }
+            await _unitOfWork.Volunteers.DeleteAsync(v, cancellationToken);
+        }
+
+        var shelterAllocs = await _unitOfWork.ShelterAllocations.FindAsync(s => s.CitizenUserId == id, cancellationToken);
+        foreach (var s in shelterAllocs)
+        {
+            await _unitOfWork.ShelterAllocations.DeleteAsync(s, cancellationToken);
+        }
+
+        var userRequests = await _unitOfWork.AssistanceRequests.FindAsync(r => r.CitizenUserId == id, cancellationToken);
+        foreach (var req in userRequests)
+        {
+            var recs = await _unitOfWork.AiRecommendations.FindAsync(a => a.AssistanceRequestId == req.Id, cancellationToken);
+            foreach (var rec in recs)
+            {
+                var decisions = await _unitOfWork.GovernanceDecisions.FindAsync(d => d.AiRecommendationId == rec.Id, cancellationToken);
+                foreach (var dec in decisions)
+                {
+                    await _unitOfWork.GovernanceDecisions.DeleteAsync(dec, cancellationToken);
+                }
+                await _unitOfWork.AiRecommendations.DeleteAsync(rec, cancellationToken);
+            }
+
+            var histories = await _unitOfWork.RequestHistories.FindAsync(h => h.AssistanceRequestId == req.Id, cancellationToken);
+            foreach (var history in histories)
+            {
+                await _unitOfWork.RequestHistories.DeleteAsync(history, cancellationToken);
+            }
+
+            var reqFeedbacks = await _unitOfWork.RequestFeedbacks.FindAsync(f => f.AssistanceRequestId == req.Id, cancellationToken);
+            foreach (var fb in reqFeedbacks)
+            {
+                await _unitOfWork.RequestFeedbacks.DeleteAsync(fb, cancellationToken);
+            }
+
+            var resAllocs = await _unitOfWork.ResourceAllocations.FindAsync(a => a.AssistanceRequestId == req.Id, cancellationToken);
+            var allocIds = resAllocs.Select(a => a.Id).ToHashSet();
+            if (allocIds.Count > 0)
+            {
+                var dispatches = await _unitOfWork.DispatchRecords.FindAsync(d => allocIds.Contains(d.ResourceAllocationId), cancellationToken);
+                foreach (var disp in dispatches)
+                {
+                    await _unitOfWork.DispatchRecords.DeleteAsync(disp, cancellationToken);
+                }
+            }
+            foreach (var alloc in resAllocs)
+            {
+                await _unitOfWork.ResourceAllocations.DeleteAsync(alloc, cancellationToken);
+            }
+
+            var linkedShelterAllocs = await _unitOfWork.ShelterAllocations.FindAsync(s => s.AssistanceRequestId == req.Id, cancellationToken);
+            foreach (var sAlloc in linkedShelterAllocs)
+            {
+                sAlloc.AssistanceRequestId = null;
+                await _unitOfWork.ShelterAllocations.UpdateAsync(sAlloc, cancellationToken);
+            }
+
+            var linkedVolAssigns = await _unitOfWork.VolunteerAssignments.FindAsync(v => v.AssistanceRequestId == req.Id, cancellationToken);
+            foreach (var vAssign in linkedVolAssigns)
+            {
+                vAssign.AssistanceRequestId = null;
+                await _unitOfWork.VolunteerAssignments.UpdateAsync(vAssign, cancellationToken);
+            }
+
+            await _unitOfWork.AssistanceRequests.DeleteAsync(req, cancellationToken);
+        }
+
+        var orphanFeedbacks = await _unitOfWork.RequestFeedbacks.FindAsync(f => f.CitizenUserId == id, cancellationToken);
+        foreach (var fb in orphanFeedbacks)
+        {
+            await _unitOfWork.RequestFeedbacks.DeleteAsync(fb, cancellationToken);
+        }
+
+        await _unitOfWork.Users.DeleteAsync(user, cancellationToken);
+
+        var actorId = currentActorId == Guid.Empty ? (Guid?)null : currentActorId;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "UserManagement",
+            ActionName = "Admin_DeletedUser",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "SystemAdmin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "SystemAdmin",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { user.FullName, user.Email, Role = user.Role.ToString() })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(new { deletedUserId = id, message = $"Removed user {user.FullName} ({user.Email})." });
+    }
+
+    [HttpGet("admin/partnerships")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> GetPartnerships(CancellationToken cancellationToken)
+    {
+        var orgs = await _unitOfWork.Organisations.GetAllAsync(cancellationToken);
+        var users = await _unitOfWork.Users.GetAllAsync(cancellationToken);
+        var partnerUsersByOrg = users
+            .Where(u => u.OrganisationId.HasValue && u.Role == UserRole.PartnerOfficer)
+            .GroupBy(u => u.OrganisationId!.Value)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(u => new { u.Id, u.FullName, u.Email, u.AccountStatus, u.IsActive }).ToList());
+
+        var result = orgs
+            .OrderByDescending(o => o.PartnershipStatus == "Pending")
+            .ThenBy(o => o.Name)
+            .Select(o => new
+            {
+                o.Id,
+                o.Name,
+                o.OrganisationType,
+                o.Country,
+                o.ContactEmail,
+                o.ContactPhone,
+                o.IsVerified,
+                o.PartnershipStatus,
+                o.PartnershipProposal,
+                o.CreatedAtUtc,
+                Officers = partnerUsersByOrg.TryGetValue(o.Id, out var list) ? list : new()
+            })
+            .ToList();
+
+        return Ok(result);
+    }
+
+    [HttpPost("admin/partnerships/{organisationId:guid}/approve")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> ApprovePartnership(Guid organisationId, CancellationToken cancellationToken)
+    {
+        var org = await _unitOfWork.Organisations.GetByIdAsync(organisationId, cancellationToken);
+        if (org == null)
+        {
+            return NotFound(new { message = "Partner organisation not found." });
+        }
+
+        org.IsVerified = true;
+        org.PartnershipStatus = "Approved";
+        await _unitOfWork.Organisations.UpdateAsync(org, cancellationToken);
+
+        var officers = await _unitOfWork.Users.FindAsync(
+            u => u.OrganisationId == organisationId && u.Role == UserRole.PartnerOfficer,
+            cancellationToken);
+        foreach (var officer in officers)
+        {
+            officer.AccountStatus = "Active";
+            officer.IsActive = true;
+            await _unitOfWork.Users.UpdateAsync(officer, cancellationToken);
+        }
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "PartnershipApproval",
+            ActionName = "Admin_ApprovedPartnership",
+            EntityType = nameof(Organisation),
+            EntityId = org.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "Admin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "SystemAdmin",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { org.Name, OfficersActivated = officers.Count })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(org);
+    }
+
+    [HttpPost("admin/partnerships/{organisationId:guid}/reject")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> RejectPartnership(Guid organisationId, CancellationToken cancellationToken)
+    {
+        var org = await _unitOfWork.Organisations.GetByIdAsync(organisationId, cancellationToken);
+        if (org == null)
+        {
+            return NotFound(new { message = "Partner organisation not found." });
+        }
+
+        org.IsVerified = false;
+        org.PartnershipStatus = "Rejected";
+        await _unitOfWork.Organisations.UpdateAsync(org, cancellationToken);
+
+        var officers = await _unitOfWork.Users.FindAsync(
+            u => u.OrganisationId == organisationId && u.Role == UserRole.PartnerOfficer,
+            cancellationToken);
+        foreach (var officer in officers)
+        {
+            officer.AccountStatus = "PartnershipRejected";
+            await _unitOfWork.Users.UpdateAsync(officer, cancellationToken);
+        }
+
+    }
+}
+
+internal static class LegacySessionTokenValidator
+{
+    internal static bool IsTokenWellFormed(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        string[] segments = token.Split('.');
+        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+    }
+
+    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    {
+        "Admin" => "SystemAdmin",
+        "Coordinator" => "EmergencyCoordinator",
+        "Logistics" => "LogisticsManager",
+        "Shelter" => "ShelterAdmin",
+        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
+    };
+
+    internal static int ComputeLockoutRemainingMinutes(int failedCount)
+    {
+        if (failedCount < 3) return 0;
+        return Math.Min(60, (failedCount - 2) * 15);
+    }
+
+    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    {
+        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
+        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
+    };
 }
