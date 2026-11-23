@@ -124,7 +124,7 @@ builder.Services.AddCors(options =>
                 }
                 if (Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
                     uri.Scheme == Uri.UriSchemeHttps &&
-                    (
+                    (uri.Host.EndsWith(".ngrok-free.app", StringComparison.OrdinalIgnoreCase) ||
                      uri.Host.EndsWith(".ngrok-free.dev", StringComparison.OrdinalIgnoreCase) ||
                      uri.Host.EndsWith(".ngrok.io", StringComparison.OrdinalIgnoreCase)))
                 {
@@ -148,7 +148,7 @@ builder.Services.AddRateLimiter(options =>
             context.Connection.RemoteIpAddress?.ToString() ?? "local",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = isTestingEnv ? 1000 : 120,
+                PermitLimit = isTestingEnv ? 1000 : 30,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -235,34 +235,3 @@ using (var scope = app.Services.CreateScope())
 app.Run();
 
 public partial class Program { }
-
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
-    }
-
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
-    {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
-
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
-    }
-
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
-    {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
-}
