@@ -781,7 +781,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="email"
                       name="email"
-                      autoComplete="username"
+                      autoComplete="off"
                       required
                       value={signInEmail}
                       onChange={(e) => setSignInEmail(e.target.value)}
@@ -798,7 +798,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="password"
                       name="password"
-                      autoComplete="current-password"
+                      autoComplete="off"
                       required
                       value={signInPassword}
                       onChange={(e) => setSignInPassword(e.target.value)}
@@ -838,7 +838,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="email"
                       name="email"
-                      autoComplete="username"
+                      autoComplete="off"
                       required
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
@@ -855,7 +855,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="password"
                       name="password"
-                      autoComplete="current-password"
+                      autoComplete="off"
                       required
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
@@ -1150,34 +1150,451 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       </div>
                       {regHasChronicMedicalNeeds && (
                         <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Medical / Medication Notes</label>
+                          <input
+                            type="text"
+                            value={regMedicalNotes}
+                            onChange={(e) => setRegMedicalNotes(e.target.value)}
+                            placeholder="List daily medications or critical devices"
+                            className="rsvp-input"
+                          />
+                          <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                            Example: Insulin glargine cold-chain storage required, asthma nebulizer
+                          </p>
+                        </div>
+                      )}
+                      <label className="flex items-center gap-2 text-emerald-300 font-bold cursor-pointer pt-1 border-t border-white/10">
+                        <input
+                          type="checkbox"
+                          checked={regAsVolunteer}
+                          onChange={(e) => setRegAsVolunteer(e.target.checked)}
+                          className="w-4 h-4 rounded"
+                        />
+                        Also register me on the Emergency Volunteer Roster
+                      </label>
+                    </div>
+                  )}
+
+                  {(regRole === 'Volunteer' || (regRole === 'Citizen' && regAsVolunteer)) && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 space-y-2.5">
+                      <p className="font-extrabold text-zinc-100 flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Volunteer Skills & Availability Schedule</span>
+                      </p>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Emergency Skills (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={regSkillsCsv}
+                          onChange={(e) => setRegSkillsCsv(e.target.value)}
+                          placeholder="Enter your field skills"
+                          className="rsvp-input"
+                        />
+                        <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                          Example: FirstAid, Medical Triage, Boat Rescue, Logistics Dispatch
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Spoken Languages</label>
+                          <input
+                            type="text"
+                            value={regLanguagesCsv}
+                            onChange={(e) => setRegLanguagesCsv(e.target.value)}
+                            placeholder="Languages you speak"
+                            className="rsvp-input"
+                          />
+                          <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                            Example: English, Sinhala, Tamil
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Base Town / District</label>
+                          <input
+                            type="text"
+                            value={regBaseTown}
+                            onChange={(e) => setRegBaseTown(e.target.value)}
+                            placeholder="Current dispatch town"
+                            className="rsvp-input"
+                          />
+                          <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                            Example: Colombo / Galle / Kandy
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Availability Schedule</label>
+                        <input
+                          type="text"
+                          value={regAvailability}
+                          onChange={(e) => setRegAvailability(e.target.value)}
+                          placeholder="Hours or days available"
+                          className="rsvp-input"
+                        />
+                        <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                          Example: Weekdays 08:00-18:00 & 24/7 Emergency Call-Out
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.985 }}
+                    type="submit"
+                    disabled={submitting}
+                    className="keep-white w-full py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[15px] sm:text-base tracking-tight transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <span>{submitting ? 'Creating Account...' : 'Create Account & Enter CriSync'}</span>
+                    <ArrowUpRight className="w-4 h-4" />
+                  </motion.button>
+                </form>
+              )}
+            </div>
+
+            <div className="bento-glass rounded-3xl p-5 sm:p-6 relative overflow-hidden group">
+              <div className="-mx-5 -mt-5 sm:-mx-6 sm:-mt-6 mb-4 h-40 sm:h-44 relative overflow-hidden">
+                <img
+                  src="/images/hero-relief.jpg"
+                  alt="Humanitarian relief workers assisting families during flood response"
+                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                />
+                <div className="crisync-photo-scrim absolute inset-0" />
+                <div className="keep-white absolute bottom-3 left-4 right-4 flex items-end justify-between gap-2">
+                  <div>
+                    <span className="crisync-photo-pill-emerald inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-extrabold text-white">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+                      Global Humanitarian Aid Network • Active
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3.5 mb-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-rose-500 flex items-center justify-center shadow-md shrink-0 keep-white">
+                  <Radio className="w-5 h-5 text-white keep-white" />
+                </div>
+                <div>
+                  <span className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-indigo-400">
+                    <Sparkles className="w-3 h-3" />
+                    Platform Operation Status
+                  </span>
+                  <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-white leading-tight mt-0.5">
+                    {activeCrisisTitle || 'Clean Real-World Response Workspace'}
+                  </h1>
+                </div>
+              </div>
+
+              <p className="text-[13px] sm:text-sm text-zinc-300 leading-relaxed mb-4">
+                Connecting affected citizens and households with emergency coordinators, relief warehouses, evacuation shelters, donors, and field volunteers using secure role-based accounts.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white/[0.03] border border-white/[0.07]">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] sm:text-sm font-bold text-zinc-100 truncate">
+                      Real Data Only
+                    </p>
+                    <p className="text-xs text-zinc-400 truncate">
+                      Declare Crises, Shelters & Stock
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white/[0.03] border border-white/[0.07]">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13px] sm:text-sm font-bold text-zinc-100 truncate">
+                      Password-Protected RBAC
+                    </p>
+                    <p className="text-xs text-zinc-400 truncate">
+                      Multi-User Role-Based Access
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05, ease: 'easeOut' }}
+            className="lg:col-span-7 bento-glass rounded-3xl p-5 sm:p-7 space-y-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-white/[0.08]">
+              <div>
+                <span className="text-[13px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                  <HelpCircle className="w-3.5 h-3.5" />
+                  CriSync Role Governance & Access Architecture
+                </span>
+                <h2 className="text-base font-extrabold text-white mt-0.5">
+                  Self-Registration, Invited Operational Roles & Two-Tier Admins
+                </h2>
+                <p className="text-[13px] sm:text-sm leading-relaxed text-zinc-400 mt-1">
+                  Public users can register under the 4 open roles below. Operational teams require an authorised invitation, and Global/Organization Admins operate under a strict small-count security policy.
+                </p>
+              </div>
+              <div className="text-left sm:text-right bg-emerald-500/10 border border-emerald-500/25 px-3 py-2 rounded-2xl">
+                <span className="text-[11px] text-emerald-300 flex items-center gap-1 font-bold uppercase tracking-wider">
+                  <KeyRound className="w-3 h-3" />
+                  Access Governance
+                </span>
+                <span className="text-[13px] sm:text-sm font-bold text-zinc-100 block mt-0.5">
+                  {ALL_PLATFORM_ROLES.length} Governed Roles
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: '3D Global Sync', tone: 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300' },
+                { label: 'Explainable AI Triage', tone: 'bg-purple-500/15 border-purple-500/30 text-purple-300' },
+                { label: 'Atomic Shelter Locks', tone: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' },
+                { label: '6-Language Citizen Help', tone: 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300' },
+                { label: 'Biometric Quick Unlock', tone: 'bg-amber-500/15 border-amber-500/30 text-amber-300' }
+              ].map((pill) => (
+                <span
+                  key={pill.label}
+                  className={`px-2.5 py-1 rounded-full border text-[11px] font-bold ${pill.tone}`}
+                >
+                  {pill.label}
+                </span>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08]">
+              {[
+                { id: 'public', label: 'Public & Citizens (4)' },
+                { id: 'operations', label: 'Operations Staff (6)' },
+                { id: 'admin', label: 'System Admins (2)' },
+                { id: 'all', label: 'Show All 12 Roles' }
+              ].map((tabOpt) => {
+                const active = roleExplorerTab === tabOpt.id;
+                return (
+                  <button
+                    key={tabOpt.id}
+                    type="button"
+                    onClick={() => setRoleExplorerTab(tabOpt.id as 'public' | 'operations' | 'admin' | 'all')}
+                    className={`flex-auto py-2 px-3 rounded-xl text-xs font-extrabold whitespace-nowrap transition ${
+                      active
+                        ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                        : 'text-zinc-300 hover:text-white hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    {tabOpt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {(roleExplorerTab === 'public' || roleExplorerTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[13px] sm:text-sm font-extrabold uppercase tracking-wider text-emerald-300">
+                  1. Public & Self-Registration Roles (4)
+                </h3>
+                <span className="text-xs sm:text-[13px] text-zinc-400">Open Sign-Up or Proxy Registration</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {SIGNUP_ROLE_OPTIONS.map((opt, idx) => {
+                  const isSelectedRole = authMode === 'signup' && regRole === opt.value;
+                  const meta = getRoleMeta(opt.value);
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28, delay: 0.08 + idx * 0.06, ease: 'easeOut' }}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      key={opt.value}
+                      onClick={() => startRegistrationForRole(opt.value)}
+                      className={`cursor-pointer rounded-2xl p-4 border transition-all flex flex-col justify-between ${
+                        isSelectedRole
+                          ? `bg-gradient-to-br ${meta.accent} shadow-glow ring-2 ring-indigo-500/60`
+                          : 'bg-white/[0.025] border-white/[0.08] hover:bg-white/[0.05] hover:border-white/20'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="w-8 h-8 rounded-xl bg-black/30 border border-white/10 flex items-center justify-center shrink-0">
+                            {meta.icon}
+                          </div>
+                          <span className={`text-[11px] sm:text-xs whitespace-nowrap font-bold px-2.5 py-0.5 rounded-full border ${meta.badge}`}>
+                            {meta.tag}
+                          </span>
+                        </div>
+                        <h4 className="text-[15px] sm:text-base font-extrabold text-white">{meta.title}</h4>
+                        <p className="text-[13px] sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">{meta.summary}</p>
+                      </div>
+                      <div className="mt-3 pt-2.5 border-t border-white/[0.08] flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] sm:text-xs text-zinc-400 truncate">{opt.value}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startSignInMode();
+                            }}
+                            className="text-xs sm:text-[13px] whitespace-nowrap font-bold bg-white/[0.08] hover:bg-white/[0.15] border border-white/10 text-zinc-200 inline-flex items-center gap-1 px-2.5 py-1 rounded-xl transition"
+                          >
+                            <Lock className="w-3 h-3" />
+                            <span>Sign In</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRegistrationForRole(opt.value);
+                            }}
+                            className="keep-white text-xs sm:text-[13px] whitespace-nowrap font-bold bg-indigo-600 hover:bg-indigo-500 text-white inline-flex items-center gap-1 px-2.5 py-1 rounded-xl transition shadow-sm"
+                          >
+                            <UserPlus className="w-3 h-3" />
+                            <span>Register</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+            )}
+
+            {(roleExplorerTab === 'operations' || roleExplorerTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-[13px] sm:text-sm font-extrabold uppercase tracking-wider text-amber-300">
+                  2. Invitation-Based Operational Roles (6)
+                </h3>
+                <span className="text-xs sm:text-[13px] text-zinc-400">Requires Admin or Coordinator Invitation</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {INVITED_OPERATIONAL_ROLES.map((opt, idx) => {
+                  const meta = getRoleMeta(opt.value);
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28, delay: 0.14 + idx * 0.05, ease: 'easeOut' }}
+                      whileHover={{ y: -3, scale: 1.01 }}
+                      key={opt.value}
+                      className="rounded-2xl p-3.5 border bg-white/[0.02] border-white/[0.08] hover:border-white/20 transition-all flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="w-8 h-8 rounded-xl bg-black/30 border border-white/10 flex items-center justify-center shrink-0">
+                            {meta.icon}
+                          </div>
+                          <span className={`text-[11px] whitespace-nowrap font-bold px-2 py-0.5 rounded-full border ${meta.badge}`}>
+                            {meta.tag}
+                          </span>
+                        </div>
+                        <h4 className="text-[13px] sm:text-sm font-extrabold text-white">{meta.title}</h4>
+                        <p className="text-xs sm:text-[13px] text-zinc-400 mt-1 leading-relaxed">{meta.summary}</p>
+                        <p className="text-[11px] sm:text-xs text-amber-300/90 font-semibold mt-1.5">{opt.inviteNote}</p>
+                      </div>
+                      <div className="mt-2.5 pt-2 border-t border-white/[0.08] flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] text-zinc-500 truncate">{opt.value}</span>
+                        <button
+                          type="button"
+                          onClick={startSignInMode}
+                          className="text-xs whitespace-nowrap font-bold bg-white/[0.08] hover:bg-white/[0.15] border border-white/10 text-zinc-200 inline-flex items-center gap-1 px-2.5 py-1 rounded-xl transition shrink-0"
+                        >
+                          <Lock className="w-3 h-3" />
+                          <span>Sign In</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+            )}
+
+            {(roleExplorerTab === 'admin' || roleExplorerTab === 'all') && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[13px] sm:text-sm font-extrabold uppercase tracking-wider text-violet-300">
+                  3. Two-Tier Admin Structure (Small Number of Admins Policy)
+                </h3>
+                <span className="text-xs sm:text-[13px] text-zinc-400">Min 2 & Max 3 Global Admins • Max 3 Org Admins</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {ADMIN_GOVERNANCE_ROLES.map((opt, idx) => {
+                  const meta = getRoleMeta(opt.value);
+                  const isSelected = authMode === 'admin';
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.28, delay: 0.2 + idx * 0.06, ease: 'easeOut' }}
+                      whileHover={{ y: -4, scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      key={opt.value}
+                      onClick={startAdminLogin}
+                      className={`cursor-pointer rounded-2xl p-4 border transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? `bg-gradient-to-br ${meta.accent} shadow-glow ring-2 ring-violet-500/60`
+                          : 'bg-white/[0.025] border-white/[0.08] hover:bg-white/[0.05] hover:border-white/20'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="w-8 h-8 rounded-xl bg-black/30 border border-white/10 flex items-center justify-center shrink-0">
+                            {meta.icon}
+                          </div>
+                          <span className={`text-[11px] sm:text-xs whitespace-nowrap font-bold px-2.5 py-0.5 rounded-full border ${meta.badge}`}>
+                            {meta.tag}
+                          </span>
+                        </div>
+                        <h4 className="text-[15px] sm:text-base font-extrabold text-white">{meta.title}</h4>
+                        <p className="text-[13px] sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">{meta.summary}</p>
+                      </div>
+                      <div className="mt-3 pt-2.5 border-t border-white/[0.08] flex items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] sm:text-xs text-zinc-400 truncate">{opt.value}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startAdminLogin();
+                          }}
+                          className="keep-white text-xs sm:text-[13px] whitespace-nowrap font-bold bg-violet-600 hover:bg-violet-500 text-white inline-flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-xl transition shadow-sm"
+                        >
+                          <ShieldAlert className="w-3 h-3" />
+                          <span>Admin Login</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+            )}
+          </motion.div>
+        </div>
+      </main>
+
+      <footer className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-8 py-4 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-2 text-[13px] sm:text-sm text-zinc-500">
+        <span className="inline-flex items-center gap-2 font-semibold">
+          <img
+            src="/crisync-logo.png"
+            alt="CriSync Logo"
+            className="w-6 h-6 rounded-lg object-cover crisync-logo-frame shrink-0"
+          />
+          <span className="crisync-wordmark text-sm">
+            <span className="crisync-wordmark-primary">Cri</span>
+            <span className="crisync-wordmark-accent">Sync</span>
+          </span>
+          <span>— Humanitarian Crisis Aid & Coordination Platform</span>
+        </span>
+        <span>Accessible in Light & Dark Mode • Desktop & Mobile Ready</span>
+      </footer>
+    </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
