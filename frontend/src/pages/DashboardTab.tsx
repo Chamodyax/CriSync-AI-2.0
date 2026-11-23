@@ -2039,6 +2039,391 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.97 }}
                           onClick={() =>
+                            onUpdateRequestStatus(
+                              req.id,
+                              'Verified',
+                              'Case verified by staff after reviewing field details.'
+                            )
+                          }
+                          className="keep-white flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>{t.dashboard.verifyBtn}</span>
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() =>
+                            onUpdateRequestStatus(
+                              req.id,
+                              'Escalated',
+                              'Case escalated for immediate multi-agency dispatch.'
+                            )
+                          }
+                          className="keep-white flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                        >
+                          <Flame className="w-3.5 h-3.5" />
+                          <span>{t.dashboard.escalateBtn}</span>
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => openDestructiveConfirmModal(req, 'Closed')}
+                          className="py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Archive className="w-3.5 h-3.5" />
+                          <span>{t.dashboard.closeBtn}</span>
+                        </motion.button>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => openDestructiveConfirmModal(req, 'Rejected')}
+                          className="py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>{t.dashboard.rejectBtn}</span>
+                        </motion.button>
+
+                        {organisations.length > 0 && (
+                          <select
+                            aria-label="Assign Partner Organisation"
+                            value={req.assignedOrganisationId || ''}
+                            onChange={(e) => {
+                              const orgId = e.target.value;
+                              if (!orgId) return;
+                              const orgName = organisations.find((o) => o.id === orgId)?.name || 'Partner Agency';
+                              onUpdateRequestStatus(
+                                req.id,
+                                'Assigned',
+                                `Assigned to partner organisation: ${orgName}`,
+                                orgId
+                              );
+                            }}
+                            className="rsvp-input text-xs py-1.5 px-2.5 w-full sm:w-auto"
+                          >
+                            <option value="">Assign Partner Org...</option>
+                            {organisations.map((org) => (
+                              <option key={org.id} value={org.id}>{org.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </>
+                    )}
+
+                    {canManageCases && req.isFlaggedPotentialDuplicate && req.status !== 'MergedAsDuplicate' && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => onMergeDuplicate(req)}
+                        className="keep-white py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition shadow-sm"
+                      >
+                        <GitMerge className="w-3.5 h-3.5" />
+                        <span>{t.dashboard.mergeBtn}</span>
+                      </motion.button>
+                    )}
+
+                    {canReviewAi && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => onSelectForAiGovernance(req)}
+                        className="py-2 px-3.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>{t.dashboard.reviewAiBtn}</span>
+                      </motion.button>
+                    )}
+                  </div>
+
+                  {req.timeline && req.timeline.length > 0 && (
+                    <div className="pt-2 border-t border-white/[0.05]">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandCard(req.id)}
+                        className="text-xs font-semibold text-indigo-400 hover:underline flex items-center gap-1"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                        <span>
+                          {isExpanded
+                            ? 'Hide Activity History'
+                            : `Show Activity History (${req.timeline.length} updates)`}
+                        </span>
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {isExpanded && (
+                        <div className="mt-2 space-y-1.5 pl-1">
+                          {req.timeline.map((historyItem: any) => (
+                            <div
+                              key={historyItem.id}
+                              className="text-xs text-zinc-400 flex flex-wrap items-center gap-1.5"
+                            >
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.05] text-indigo-300 font-mono text-[11px]">
+                                {historyItem.previousStatus}
+                                <ArrowRight className="w-2.5 h-2.5" />
+                                {historyItem.newStatus}
+                              </span>
+                              <span>{historyItem.actionDescription}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {lightboxPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxPhoto(null)}
+            className="crisync-lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+          >
+            <motion.div
+              data-lightbox="open"
+              aria-label={lightboxPhoto.title || 'Field evidence photo preview'}
+              initial={{ opacity: 0, scale: 0.94, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bento-glass rounded-3xl max-w-4xl w-full overflow-hidden border border-indigo-400/35 shadow-2xl"
+            >
+              <div className="relative bg-slate-950">
+                <img
+                  src={lightboxPhoto.src}
+                  alt={lightboxPhoto.caption}
+                  className="w-full max-h-[72dvh] object-contain mx-auto"
+                />
+                <button
+                  type="button"
+                  aria-label="Close photo preview"
+                  onClick={() => setLightboxPhoto(null)}
+                  className="keep-white absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-extrabold inline-flex items-center gap-1.5 shadow-lg transition"
+                >
+                  <X className="w-4 h-4" />
+                  <span>Close</span>
+                </button>
+              </div>
+              <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10">
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-white">
+                    {lightboxPhoto.title}
+                  </h3>
+                  <p className="text-xs text-zinc-300 mt-0.5">{lightboxPhoto.caption}</p>
+                </div>
+                {lightboxPhoto.fileName && (
+                  <span className="px-3 py-1 rounded-xl bg-white/[0.06] border border-white/10 font-mono text-[11px] text-indigo-300">
+                    {lightboxPhoto.fileName}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {destructiveModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => !isSubmittingDestructive && setDestructiveModal(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md"
+          >
+            <motion.div
+              data-lightbox="open"
+              aria-labelledby="destructive-modal-title"
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bento-glass rounded-3xl max-w-lg w-full overflow-hidden border border-rose-500/40 shadow-2xl bg-zinc-950/95 p-6 space-y-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-2xl ${destructiveModal.actionType === 'Rejected' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                    {destructiveModal.actionType === 'Rejected' ? (
+                      <Ban className="w-5 h-5" />
+                    ) : (
+                      <Archive className="w-5 h-5" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 id="destructive-modal-title" className="text-base font-bold text-white flex items-center gap-2">
+                      {destructiveModal.actionType === 'Rejected'
+                        ? 'Confirm Case Rejection (ඉල්ලීම ප්‍රතික්ෂේප කිරීම)'
+                        : 'Confirm Case Resolution (නඩුව අවසන් කිරීම)'}
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      {destructiveModal.actionType === 'Rejected'
+                        ? 'This action marks the citizen request as rejected in operational logs.'
+                        : 'This action records the request as fulfilled and closed.'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancel"
+                  onClick={() => setDestructiveModal(null)}
+                  disabled={isSubmittingDestructive}
+                  className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="font-mono text-indigo-300 font-bold">
+                    {destructiveModal.req.trackingCode || (destructiveModal.req.id ? destructiveModal.req.id.slice(0, 8) : 'REQ')}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/10 text-zinc-300 uppercase">
+                    {destructiveModal.req.urgencyLevel || destructiveModal.req.status}
+                  </span>
+                </div>
+                <h4 className="text-sm font-semibold text-white">
+                  {destructiveModal.req.title}
+                </h4>
+                <div className="text-xs text-zinc-400 flex items-center gap-3">
+                  <span>📍 {destructiveModal.req.district || 'Active Zone'}</span>
+                  {destructiveModal.req.affectedCount > 0 && (
+                    <span>👥 {destructiveModal.req.affectedCount} Affected</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-zinc-300">
+                  {destructiveModal.actionType === 'Rejected'
+                    ? 'Mandatory Rejection Category (හේතුව තෝරන්න):'
+                    : 'Resolution Reason / Category:'}
+                </label>
+                <select
+                  value={destructiveReasonCategory}
+                  onChange={(e) => setDestructiveReasonCategory(e.target.value)}
+                  disabled={isSubmittingDestructive}
+                  className="w-full py-2 px-3 rounded-xl bg-zinc-900 border border-white/15 text-xs text-white focus:outline-none focus:border-rose-500/50"
+                >
+                  {destructiveModal.actionType === 'Rejected' ? (
+                    <>
+                      <option value="Duplicate submission">Duplicate submission (අනුපිටපත් ඉල්ලීමක්)</option>
+                      <option value="Outside active operational jurisdiction">Outside active operational zone (මෙහෙයුම් කලාපයෙන් පිටත)</option>
+                      <option value="Resolved by external responders">Resolved by external first responders (ප්‍රාදේශීයව විසඳන ලද)</option>
+                      <option value="Non-humanitarian or invalid inquiry">Non-humanitarian or invalid inquiry (ආපදා නොවන විමසීමක්)</option>
+                      <option value="Other verification rationale">Other verification rationale (වෙනත් විශේෂිත හේතුවක්)</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Relief assistance fulfilled on-site">Relief assistance fulfilled on-site (සහනාධාර ලබාදී අවසන්)</option>
+                      <option value="Evacuation or shelter transfer complete">Evacuation or shelter transfer complete (නවාතැන් ලබාදී අවසන්)</option>
+                      <option value="Medical triage completed">Medical triage completed (වෛද්‍ය ප්‍රතිකාර ලබාදී අවසන්)</option>
+                      <option value="Other resolution">Other resolution (වෙනත්)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-zinc-300">
+                  Audit Log Note (අමතර සටහන):
+                </label>
+                <textarea
+                  rows={2}
+                  value={destructiveCustomNote}
+                  onChange={(e) => setDestructiveCustomNote(e.target.value)}
+                  disabled={isSubmittingDestructive}
+                  placeholder="Enter details for the coordinator audit log..."
+                  className="w-full py-2 px-3 rounded-xl bg-zinc-900 border border-white/15 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500/50 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setDestructiveModal(null)}
+                  disabled={isSubmittingDestructive}
+                  className="py-2 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-300 text-xs font-bold transition"
+                >
+                  Cancel (අවලංගු කරන්න)
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDestructiveAction}
+                  disabled={isSubmittingDestructive}
+                  className={`keep-white py-2 px-4 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 transition shadow-lg ${destructiveModal.actionType === 'Rejected'
+                    ? 'bg-rose-600 hover:bg-rose-500 border border-rose-500/40'
+                    : 'bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/40'
+                    }`}
+                >
+                  {isSubmittingDestructive ? (
+                    <span>Processing...</span>
+                  ) : (
+                    <>
+                      {destructiveModal.actionType === 'Rejected' ? <Ban className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                      <span>
+                        {destructiveModal.actionType === 'Rejected'
+                          ? 'Confirm Rejection (ප්‍රතික්ෂේප කරන්න)'
+                          : 'Confirm Close (අවසන් කරන්න)'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {undoToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 30, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-3 p-3.5 pr-4 rounded-2xl bg-zinc-900 border border-amber-500/40 shadow-2xl text-white text-xs max-w-md"
+          >
+            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-white">
+                Case marked as {undoToast.actionType}
+              </p>
+              <p className="text-[11px] text-zinc-400 truncate">
+                Case <span className="font-mono text-amber-300 font-bold">{undoToast.caseCode}</span> was updated.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleUndoDestructiveAction}
+              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition shadow"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Undo (ආපසු හරවන්න)</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss toast"
+              onClick={() => setUndoToast(null)}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white transition"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
