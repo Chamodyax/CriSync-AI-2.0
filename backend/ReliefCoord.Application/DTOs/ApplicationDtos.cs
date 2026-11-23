@@ -187,35 +187,191 @@ public record CompetingShortageScenarioRequestDto(
     string StrategyName
 );
 
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+public record PlannedAllocationItemDto(
+    Guid AssistanceRequestId,
+    string RequestReferenceCode,
+    string RequestTitle,
+    UrgencyLevel Urgency,
+    double PriorityScore,
+    Guid SelectedResourceItemId,
+    string SelectedResourceName,
+    string WarehouseName,
+    int RequestedQuantity,
+    int AllocatedQuantity,
+    bool IsPartialShortage,
+    double ConstraintScore,
+    double DistanceKm,
+    string AlternativeRecommendation
+);
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
-    }
+public record ResourceAllocationPlanResult(
+    string StrategyUsed,
+    bool ShortageEncountered,
+    int TotalRequestedAcrossCases,
+    int TotalAllocatedAcrossCases,
+    int TotalUnmetShortfall,
+    List<PlannedAllocationItemDto> Allocations,
+    string ArchitecturalExplanation
+);
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
-    }
+public record AllocateShelterRequestDto(
+    Guid ShelterId,
+    Guid? AssistanceRequestId,
+    Guid CitizenUserId,
+    string HouseholdName,
+    int MembersCount,
+    bool RequiresAccessibility
+);
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
-}
+public record AssignVolunteerTaskDto(
+    Guid VolunteerProfileId,
+    Guid? AssistanceRequestId,
+    string TaskTitle,
+    string RequiredSkill
+);
+
+public record CreateDonationDto(
+    Guid CampaignId,
+    string DonorName,
+    string DonationType,
+    decimal MonetaryAmountUsd,
+    string MaterialDescription,
+    int MaterialQuantity,
+    string AllocationPurpose,
+    string SandboxCardLastFour
+);
+
+public record CreateVolunteerProfileDto(
+    string FullName,
+    string SkillsCsv,
+    string LanguagesCsv,
+    string AvailabilitySchedule,
+    double CurrentLatitude,
+    double CurrentLongitude
+);
+
+public record CreateDonationCampaignDto(
+    string Title,
+    Guid? CrisisEventId,
+    decimal TargetAmountUsd
+);
+
+public record SendNotificationRequestDto(
+    Guid RecipientUserId,
+    string RecipientContact,
+    NotificationChannel Channel,
+    string LanguageCode,
+    string Subject,
+    string MessageBody,
+    string IdempotencyKey
+);
+
+public record RouteCalculationDto(
+    double DistanceKm,
+    int EstimatedMinutes,
+    string RouteSummary,
+    string ProviderUsed
+);
+
+public record GeocodingResultDto(
+    string FormattedAddress,
+    double Latitude,
+    double Longitude,
+    string ProviderUsed
+);
+
+public record ResilienceStatusDto(
+    bool SimulateExternalAiFailure,
+    bool SimulateExternalMappingFailure,
+    bool SimulateExternalNotificationFailure,
+    int AiCircuitTripCount,
+    int MappingCircuitTripCount,
+    int NotificationCircuitTripCount,
+    string ActiveAiMode,
+    string ActiveMappingMode,
+    string ActiveNotificationMode
+);
+
+public record OperationalKpiMetricsDto(
+    int TotalRequests,
+    int UnresolvedCasesCount,
+    int CriticalOpenCasesCount,
+    int PotentialDuplicatesFlaggedCount,
+    int SuspiciousItemsFlaggedCount,
+    double AverageResponseTimeMinutes,
+    double ResourceUtilisationPercentage,
+    double ShelterOccupancyPercentage,
+    int TotalShelterCapacity,
+    int TotalShelterOccupied,
+    int TotalAiRecommendations,
+    int ReviewedAiRecommendations,
+    double AiOverrideFrequencyPercentage,
+    int TotalNotificationsSent,
+    int DuplicateNotificationsPreventedCount,
+    decimal TotalDonationsCollectedUsd,
+    Dictionary<string, int> RequestsByCategory,
+    Dictionary<string, int> RequestsByStatus
+);
+
+public record AdminUserSummaryDto(
+    Guid Id,
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    string Role,
+    string PreferredLanguage,
+    Guid? OrganisationId,
+    string OrganisationName,
+    bool IsActive,
+    DateTime CreatedAtUtc,
+    string AccountStatus = "Active",
+    string InvitedByUserName = "",
+    string InvitationCode = ""
+);
+
+public record RegisterCitizenOnBehalfDto(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    string Password,
+    string PrimaryAddress,
+    int TotalMembers,
+    int ChildrenCount,
+    int ElderlyCount,
+    bool HasMobilityNeeds,
+    bool HasChronicMedicalNeeds,
+    string MedicalNotes,
+    string PreferredLanguage
+);
+
+public record InviteStaffRequestDto(
+    string FullName,
+    string Email,
+    string PhoneNumber,
+    string TemporaryPassword,
+    UserRole Role,
+    Guid? OrganisationId,
+    string PreferredLanguage
+);
+
+public record RolePermissionDto(
+    UserRole Role,
+    string PermissionCode,
+    string Description
+);
+
+public record SystemGovernanceConfigDto(
+    int MinGlobalAdmins,
+    int MaxGlobalAdmins,
+    int MaxOrganizationAdmins,
+    bool RequireVolunteerCoordinatorVerification,
+    bool RequirePartnerAdminApproval,
+    decimal HighValueDonationThresholdUsd
+);
+
+public record ServiceIntegrationSettingsDto(
+    string AiProviderName,
+    string AiModelName,
+    double AiConfidenceThreshold,
+    bool SimulateExternalAiFailure,
+    string SmsProviderName,
