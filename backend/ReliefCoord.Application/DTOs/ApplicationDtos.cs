@@ -517,7 +517,7 @@ public record CompleteVolunteerAssignmentDto(
 public record CreateCampaignExpenditureDto(
     [Range(0.01, 100000000)] decimal AmountUsd,
     [Required, StringLength(100)] string Category,
-    [Required, StringLength(500)] string Description
+    string Description
 );
 
 public record RequestShelterSuppliesDto(
@@ -537,6 +537,141 @@ public record CreatePartnerAidRequestDto(
     [Required, StringLength(200)] string ResourceName,
     [Range(1, 1000000)] int QuantityNeeded,
     [Required, StringLength(1000)] string Justification,
+    Guid? TargetPartnerOrganisationId = null
+);
+
+public record FulfillPartnerAidRequestDto(
+    string? FulfillmentNotes = null
+);
+
+public record CreateOperationalAreaDto(
+    string ZoneName,
+    [Required, StringLength(100)] string District,
+    double Latitude,
+    double Longitude,
+    [Range(1, 500)] double CoverageRadiusKm,
+    [Range(0, 10000000)] int EstimatedAffectedPopulation,
+    [Required, StringLength(50)] string RiskLevel,
+    Guid? AssignedOrganisationId = null
+);
+
+public record QuickUnlockSetupRequestDto(
+    [Required] string CurrentPassword,
+    [Required, StringLength(20)] string Mode,
+    [Required, StringLength(64)] string Secret,
+    string? BiometricCredentialId = null,
+    string? DeviceName = null,
+    string? OriginHost = null
+);
+
+public record QuickUnlockSetupResponseDto(
+    Guid UserId,
+    string FullName,
+    string Email,
+    string Role,
+    string Mode,
+    bool HasBiometricCredential,
+    string DeviceToken,
+    string DeviceId,
+    string DeviceName
+);
+
+public record TrustedDeviceSummaryDto(
+    string DeviceId,
+    string DeviceName,
+    string OriginHost,
+    bool HasBiometrics,
+    DateTime CreatedAtUtc
+);
+
+public record QuickUnlockVerifyRequestDto(
+    Guid UserId,
+    [Required] string DeviceToken,
+    [Required] string Secret
+);
+
+public record QuickUnlockChallengeRequestDto(
+    Guid UserId,
+    [Required] string DeviceToken
+);
+
+public record QuickUnlockChallengeResponseDto(
+    string ChallengeId,
+    string ChallengeBase64Url,
+    string CredentialId
+);
+
+public record QuickUnlockBiometricVerifyRequestDto(
+    Guid UserId,
+    [Required] string DeviceToken,
+    [Required] string ChallengeId,
+    [Required] string CredentialId,
+    [Required] string ClientDataJsonBase64Url
+);
+
+public record QuickUnlockStatusDto(
+    bool QuickUnlockEnabled,
+    string Mode,
+    bool HasBiometricCredential,
+    int FailedAttempts,
+    List<TrustedDeviceSummaryDto> TrustedDevices
+);
+
+public record CheckoutShelterAllocationDto(
+    string? DischargeNotes = null
+);
+
+public record FeedbackAnalyticsSummaryDto(
+    int TotalReviewsCount,
+    double AverageRating,
+    double TimelyDeliveryPercentage,
+    double SufficientQuantityPercentage,
+    List<RequestFeedbackItemDto> RecentFeedbacks
+);
+
+public record RequestFeedbackItemDto(
+    Guid Id,
+    Guid AssistanceRequestId,
+    string RequestReferenceCode,
+    string RequestTitle,
+    Guid CitizenUserId,
+    int Rating,
+    string Comments,
+    bool WasAidTimely,
+    bool WasQuantitySufficient,
+    DateTime CreatedAtUtc
+);
+
+public record SitRepLowStockAlertDto(
+    Guid ResourceItemId,
+    string ResourceName,
+    string Category,
+    string WarehouseName,
+    int AvailableQuantity,
+    int ReorderThreshold,
+    DateTime? ExpiryDateUtc,
+    int? DaysUntilExpiry,
+    string AlertReason
+);
+
+public record SitRepReportDto(
+    DateTime GeneratedAtUtc,
+    string GeneratedByUser,
+    string ActiveCrisisTitle,
+    string ActiveCrisisRegion,
+    string ActiveCrisisSeverity,
+    int TotalAssistanceRequests,
+    int UnresolvedRequestsCount,
+    int CriticalOpenRequestsCount,
+    int TotalShelterCapacity,
+    int TotalShelterOccupied,
+    int ActiveShelterCheckInsCount,
+    decimal TotalDonationsCollectedUsd,
+    decimal TotalDonationsDisbursedUsd,
+    double AverageCitizenRating,
+    int TotalCitizenReviews,
+    List<SitRepLowStockAlertDto> WarehouseAlerts
+);
 
 internal static class LegacyCrisisDraftMapper
 {
