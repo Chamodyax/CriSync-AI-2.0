@@ -112,7 +112,7 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
 }) => {
   const [savedDraft] = useState<any>(() => {
     try {
-      const raw = localStorage.getItem(CITIZEN_FORM_DRAFT_KEY);
+      const raw = null;
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
@@ -1298,7 +1298,7 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
                 return (
                   <div className="mt-3.5 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.07] space-y-2">
                     <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <span className="font-bold text-indigo-300">Request Timeline</span>
+                      <span className="font-bold text-indigo-300">Live Relief Progress</span>
                       <span className="text-zinc-400">{track.summary}</span>
                     </div>
                     <div className="grid grid-cols-5 gap-1.5">
@@ -1865,34 +1865,211 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
                           setWizardStep(3);
                         }}
                         className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-300 inline-flex items-center gap-1.5 transition"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Back to Edit Details</span>
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        disabled={submittingRequest}
+                        onClick={handleWizardFinalSubmit}
+                        className="keep-white px-7 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold inline-flex items-center gap-2 shadow-lg disabled:opacity-60 transition"
+                      >
+                        <ClipboardCheck className="w-4 h-4" />
+                        <span>{submittingRequest ? 'Submitting Request...' : 'Submit Emergency Request (100%)'}</span>
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="wizard-step-5"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                className="space-y-6"
+              >
+                <div className="bento-glass rounded-3xl p-6 border border-emerald-500/40 bg-emerald-500/10 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="keep-white w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md shrink-0">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-300">
+                        {lastSubmitQueuedOffline
+                          ? '100% Complete • Saved in Offline Outbox'
+                          : '100% Complete • Request Sent Successfully'}
+                      </span>
+                      <h2 className="text-lg sm:text-xl font-black text-white">
+                        {lastSubmittedTitle || 'Your Help Request Has Been Logged'}
+                      </h2>
+                      <p className="text-xs text-zinc-300 leading-relaxed max-w-2xl">
+                        {lastSubmitQueuedOffline
+                          ? 'Your request was safely saved on this device without requiring internet connectivity. It will upload automatically once your connection returns.'
+                          : 'Our emergency dispatchers and AI triage engine have received your request. You can track real-time dispatch updates and locate open evacuation shelters directly below.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handleStartNewRequest}
+                      className="keep-white px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold inline-flex items-center gap-1.5 shadow-sm transition"
+                    >
+                      <FilePlus2 className="w-4 h-4" />
+                      <span>Submit Another Request</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPortalMode('tabs')}
+                      className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-200 transition"
+                    >
+                      Open All Tabs
+                    </button>
+                  </div>
+                </div>
+
+                {renderTrackMyRequests()}
+
+                {renderMyNotifications()}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {renderAlertsAndShelters()}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="bento-glass rounded-3xl overflow-hidden border border-indigo-500/25">
+            <button
+              type="button"
+              onClick={() => setAiHelperOpen((prev) => !prev)}
+              className="w-full px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-left hover:bg-white/[0.03] transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="keep-white w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0">
+                  <Bot className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-xs font-extrabold text-white block">
+                    Need Instant Answers While Filling the Form? ({t.citizen.aiAssistantTitle})
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    Open 24/7 AI Guidance, Official Safety Briefing &amp; Quick FAQs in {LANGUAGE_OPTIONS.find((l) => l.code === language)?.label || 'English'}
+                  </span>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] border border-white/15 text-xs font-bold text-indigo-300">
+                <span>{aiHelperOpen ? 'Hide AI Help' : 'Open AI Help'}</span>
+                {aiHelperOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+            </button>
+
+            <AnimatePresence>
+              {aiHelperOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className="overflow-hidden border-t border-white/10 p-2 sm:p-4"
+                >
+                  {renderAiAssistantPanel()}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      ) : (
+        <>
+          {(activeSection === 'all' || activeSection === 'ai-support') && renderAiAssistantPanel()}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {(activeSection === 'all' || activeSection === 'request') && (
+              <div className={`${activeSection === 'request' ? 'lg:col-span-12' : 'lg:col-span-7'} bento-glass rounded-3xl p-5 sm:p-7 relative overflow-hidden`}>
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-5 pb-4 border-b border-white/[0.08]">
+                  <div className="flex items-center gap-3">
+                    <div className="keep-white w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-md shrink-0">
+                      <FilePlus2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                        {t.citizen.formBadge}
+                      </span>
+                      <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                        {t.citizen.formTitle}
+                      </h2>
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {renderHelpTypeFields()}
+                  {renderDetailsLocationFields()}
+
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.985 }}
+                    type="submit"
+                    className="keep-white w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span>{t.citizen.submitRequestBtn}</span>
+                  </motion.button>
+                </form>
+              </div>
+            )}
+
+            {(activeSection === 'all' || activeSection === 'family' || activeSection === 'shelters') && (
+              <div className={`${activeSection === 'all' ? 'lg:col-span-5' : 'lg:col-span-12'} space-y-5`}>
+                {(activeSection === 'all' || activeSection === 'family') && (
+                  <div className="bento-glass rounded-3xl p-5 sm:p-6 relative overflow-hidden border border-emerald-500/25">
+                    <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-white/10">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center">
+                          <Home className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
+                            {t.citizen.familyBadge}
+                          </span>
+                          <h3 className="text-base font-extrabold text-white">{t.citizen.familyTitle}</h3>
+                        </div>
+                      </div>
+                      <QrCode className="w-6 h-6 text-emerald-400/80" />
+                    </div>
+
+                    <form onSubmit={handleHouseholdSubmit} className="space-y-3 text-xs">
+                      {renderFamilyFormFields()}
+                      <motion.button
+                        whileTap={{ scale: 0.98 }}
+                        type="submit"
+                        disabled={savingFamily}
+                        className="keep-white w-full py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1.5 transition shadow-sm disabled:opacity-60"
+                      >
+                        <HeartPulse className="w-4 h-4" />
+                        <span>{savingFamily ? 'Saving...' : t.citizen.saveFamilyBtn}</span>
+                      </motion.button>
+                    </form>
+                  </div>
+                )}
+
+                {(activeSection === 'all' || activeSection === 'shelters') && renderAlertsAndShelters()}
+              </div>
+            )}
+          </div>
+
+          {(activeSection === 'all' || activeSection === 'track') && (
+            <>
+              {renderTrackMyRequests()}
+              {renderMyNotifications()}
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
