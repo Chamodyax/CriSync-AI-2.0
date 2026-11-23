@@ -1160,34 +1160,378 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-2 mb-5 pb-4 border-b border-white/[0.08]">
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+            {t.citizen.trackerBadge}
+          </span>
+          <h3 className="text-lg font-extrabold text-white">
+            {t.citizen.trackerTitle}
+          </h3>
+        </div>
+        <span className="px-3.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+          {myRequests.length}
+        </span>
+      </div>
+
+      <AnimatePresence>
+        {feedbackRequestId && (
+          <motion.form
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            onSubmit={handleFeedbackSubmit}
+            className="mb-5 p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 space-y-4 text-xs overflow-hidden"
+          >
+            <div className="flex items-center justify-between">
+              <p className="font-extrabold text-emerald-300 text-sm flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                {t.citizen.feedbackTitle}
+              </p>
+              <button
+                type="button"
+                onClick={() => setFeedbackRequestId(null)}
+                className="text-zinc-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+              <div>
+                <label className="block font-bold text-zinc-300 mb-2">{t.citizen.ratingLabel}</label>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className={`p-2 rounded-xl border transition ${
+                        rating >= star
+                          ? 'bg-amber-500/20 border-amber-400 text-amber-300'
+                          : 'bg-black/30 border-white/10 text-zinc-600'
+                      }`}
+                    >
+                      <Star className={`w-4 h-4 ${rating >= star ? 'fill-amber-400' : ''}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-zinc-300 mb-1.5">{t.citizen.commentsLabel}</label>
+                <input
+                  type="text"
+                  required
+                  value={feedbackComments}
+                  onChange={(e) => setFeedbackComments(e.target.value)}
+                  placeholder="Share details on delivery speed, item condition, or remaining needs..."
+                  className="rsvp-input"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 p-3 rounded-2xl bg-black/20 border border-white/10">
+              <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wasAidTimely}
+                  onChange={(e) => setWasAidTimely(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 text-emerald-500"
+                />
+                <span>Aid arrived in a timely manner</span>
+              </label>
+              <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={wasQuantitySufficient}
+                  onChange={(e) => setWasQuantitySufficient(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 text-emerald-500"
+                />
+                <span>Delivered quantity was sufficient for household needs</span>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              className="keep-white px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5 shadow-sm"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{t.citizen.submitFeedbackBtn}</span>
+            </button>
+          </motion.form>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {myRequests.map((req) => (
+          <div
+            key={req.id}
+            className="p-5 rounded-3xl bg-white/[0.025] border border-white/[0.08] hover:border-white/20 transition flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-white/10 text-white">
+                    {req.referenceCode}
+                  </span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+                    {req.status}
+                  </span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-semibold">
+                    {t.citizen.categories[req.category] || req.category}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setFeedbackRequestId(req.id)}
+                  className="keep-white px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>{t.citizen.rateDeliveryBtn}</span>
+                </button>
+              </div>
+
+              <p className="text-base font-extrabold text-white">{req.title}</p>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{req.description}</p>
+
+              {(() => {
+                const track = getCitizenTrackingStage(req.status);
+                const stages = ['Submitted', 'AI Triaged', 'Verified', 'Dispatched', 'Delivered'];
+                return (
+                  <div className="mt-3.5 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.07] space-y-2">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-bold text-indigo-300">Live Relief Progress</span>
+                      <span className="text-zinc-400">{track.summary}</span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {stages.map((label, sIdx) => {
+                        const completed = !track.closedSpecial && sIdx <= track.step;
+                        return (
+                          <div key={label} className="space-y-1">
+                            <div
+                              className={`h-1.5 rounded-full transition-all ${
+                                track.closedSpecial
+                                  ? 'bg-amber-500/40'
+                                  : completed
+                                  ? 'bg-gradient-to-r from-indigo-500 to-emerald-400'
+                                  : 'bg-white/10'
+                              }`}
+                            />
+                            <p
+                              className={`text-[10px] font-bold truncate ${
+                                completed ? 'text-emerald-300' : 'text-zinc-500'
+                              }`}
+                            >
+                              {label}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {req.timeline && req.timeline.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-white/[0.07] space-y-1.5">
+                {req.timeline.slice(0, 2).map((item: any) => (
+                  <p key={item.id} className="text-xs text-zinc-400 flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="font-bold text-indigo-300">
+                      {item.newStatus}:
+                    </span>
+                    <span className="truncate">{item.actionDescription}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const renderMyNotifications = () => (
+    <div className="bento-glass rounded-3xl p-5 sm:p-6 border border-cyan-500/25">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-white/[0.08]">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center shrink-0">
+            <BellRing className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 block">
+              Real-Time Status &amp; Safety Inbox
+            </span>
+            <h3 className="text-base font-extrabold text-white">
+              My Notifications &amp; SMS/Push Alerts
+            </h3>
+          </div>
+        </div>
+        <span className="px-3 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-xs font-bold text-cyan-300">
+          {notifications.length} Alerts
+        </span>
+      </div>
+      {notifications.length === 0 ? (
+        <p className="text-xs text-zinc-400">
+          Status updates, shelter confirmations, and dispatch SMS/in-app alerts addressed to your account appear here automatically.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+          {notifications.slice(0, 8).map((n) => (
+            <div
+              key={n.id}
+              className="p-3.5 rounded-2xl bg-white/[0.025] border border-white/[0.08] space-y-1.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold text-[10px] uppercase">
+                  {n.channel} • {String(n.languageCode || 'en').toUpperCase()}
+                </span>
+                <span className="text-[11px] font-mono text-emerald-300 font-bold">
+                  {n.deliveryStatus}
+                </span>
+              </div>
+              <p className="font-extrabold text-white text-sm">{n.subject}</p>
+              <p className="text-zinc-300 leading-relaxed">{n.messageBody}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="space-y-6" dir={t.dir}>
+      <div className="rounded-3xl overflow-hidden relative min-h-[168px] sm:min-h-[196px] border border-white/10 shadow-lg group">
+        <img
+          src="/images/hero-relief.jpg"
+          alt="Humanitarian emergency relief teams assisting families"
+          className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+        />
+        <div className="crisync-photo-scrim-side absolute inset-0" />
+        <div className="keep-white relative z-10 p-5 sm:p-7 flex flex-col justify-between min-h-[168px] sm:min-h-[196px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="crisync-photo-pill-emerald inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold text-white">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
+              24/7 Humanitarian Support • You Are Safe Here
+            </span>
+          </div>
+          <div className="mt-4 space-y-2 max-w-2xl">
+            <h2 className="crisync-photo-text text-xl sm:text-2xl font-black text-white tracking-tight leading-snug">
+              {t.citizen.portalTitle}
+            </h2>
+            <p className="crisync-photo-text text-xs sm:text-sm text-zinc-100 leading-relaxed">
+              {t.citizen.portalSubtitle}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="crisync-photo-pill px-2.5 py-1 rounded-lg text-[11px] font-bold text-white">
+                {shelters.length} Safe Shelters Open
+              </span>
+              <span className="crisync-photo-pill px-2.5 py-1 rounded-lg text-[11px] font-bold text-white">
+                6 Languages Supported
+              </span>
+              <span className="crisync-photo-pill px-2.5 py-1 rounded-lg text-[11px] font-bold text-white">
+                Guided Step-by-Step Relief
+              </span>
+              <span className="crisync-photo-pill px-2.5 py-1 rounded-lg text-[11px] font-bold text-white inline-flex items-center gap-1">
+                {isOnline ? <Wifi className="w-3 h-3 text-emerald-300" /> : <WifiOff className="w-3 h-3 text-amber-300" />}
+                {isOnline ? 'Offline-Ready Outbox' : 'Offline Capture Mode'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {(!isOnline || queuedOfflineRequests.length > 0 || offlineStatusNotice) && (
+        <div
+          className={`rounded-2xl p-4 border text-xs flex flex-wrap items-center justify-between gap-3 ${
+            isOnline
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-200'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-200'
+          }`}
+        >
+          <div className="flex items-start gap-2.5 min-w-0">
+            {isOnline ? (
+              <Wifi className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            ) : (
+              <WifiOff className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+            )}
+            <div className="space-y-0.5">
+              <p className="font-extrabold">
+                {!isOnline
+                  ? 'Offline Mobile Capture Active'
+                  : queuedOfflineRequests.length > 0
+                  ? `${queuedOfflineRequests.length} Offline Request(s) Pending Sync`
+                  : 'Offline Sync Status'}
+              </p>
+              <p className="text-[11px] opacity-90">
+                {offlineStatusNotice ||
+                  (lastSubmitQueuedOffline
+                    ? 'Your request is saved in the device outbox and will upload automatically when internet connectivity resumes.'
+                    : 'Queued emergency requests persist locally without requiring external hardware or IoT connectivity.')}
+              </p>
+            </div>
+          </div>
+          {queuedOfflineRequests.length > 0 && isOnline && (
+            <button
+              type="button"
+              onClick={() => void syncOfflineQueue()}
+              disabled={syncingOfflineQueue}
+              className="keep-white px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold inline-flex items-center gap-1.5 shadow-sm transition shrink-0"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncingOfflineQueue ? 'animate-spin' : ''}`} />
+              <span>{syncingOfflineQueue ? 'Syncing...' : 'Sync Queued Requests'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="bento-glass rounded-3xl p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-white/[0.03] border border-white/10">
+            <button
+              type="button"
+              onClick={() => setPortalMode('guided')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition ${
+                portalMode === 'guided'
+                  ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
+              }`}
+            >
+              <Compass className="w-4 h-4" />
+              <span>Guided Step-by-Step</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPortalMode('tabs')}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 transition ${
+                portalMode === 'tabs'
+                  ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                  : 'text-zinc-300 hover:text-white hover:bg-white/[0.06]'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              <span>Quick All-Tabs View</span>
+            </button>
+          </div>
+
+          <div className="mobile-tabs-scroll flex items-center gap-1.5 p-1.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 overflow-x-auto max-w-full">
+            <span className="text-[11px] font-bold text-indigo-300 px-2 flex items-center gap-1 shrink-0">
+              <Globe className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{t.languageLabel}:</span>
+            </span>
+            {LANGUAGE_OPTIONS.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => handleSelectLanguage(l.code)}
+                className={`shrink-0 px-2.5 py-1 rounded-xl text-xs font-bold transition ${
+                  language === l.code
+                    ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                    : 'text-zinc-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
