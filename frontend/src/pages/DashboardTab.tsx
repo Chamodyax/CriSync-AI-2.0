@@ -1310,34 +1310,394 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </span>
           <span className="text-zinc-400 hidden sm:inline">•</span>
           <span className="text-zinc-300 font-semibold hidden sm:inline">
+            Auto-Sync (30s)
+          </span>
+          {lastSyncedText && (
+            <span className="px-2 py-0.5 rounded-md bg-white/[0.06] border border-white/10 text-[11px] font-mono text-zinc-300">
+              Synced {lastSyncedText}
+            </span>
+          )}
+          {onManualRefresh && (
+            <button
+              type="button"
+              onClick={onManualRefresh}
+              disabled={isSyncing}
+              title="Click to refresh live crisis data"
+              className="p-1 rounded-lg bg-white/[0.05] hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition disabled:opacity-50"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11px] font-bold">
+          <span className="px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
+            {crises.length} Active Crises
+          </span>
+          <span className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300">
+            {metrics ? metrics.criticalOpenCasesCount : 0} Critical Alerts
+          </span>
+          <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+            {metrics ? `${metrics.totalShelterCapacity} Shelter Beds` : `${requests.length} Cases`}
+          </span>
+          <button
+            type="button"
+            onClick={handleExportSitRepCsv}
+            className="keep-white px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-sans font-extrabold inline-flex items-center gap-1.5 shadow-sm transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Export SitRep (CSV)</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportSitRepJson}
+            className="px-3 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] border border-white/15 text-zinc-200 font-sans font-extrabold inline-flex items-center gap-1.5 transition"
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-400" />
+            <span>SitRep JSON</span>
+          </button>
+        </div>
+      </div>
+
+      {feedbackAnalytics && (
+        <div className="bento-glass rounded-3xl p-4 sm:p-5 border border-emerald-500/25 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0">
+              <Star className="w-5 h-5 fill-amber-400" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 block">
+                Citizen Aid Delivery Quality &amp; Accountability
+              </span>
+              <h3 className="text-sm sm:text-base font-extrabold text-white">
+                {feedbackAnalytics.totalReviewsCount > 0
+                  ? `${feedbackAnalytics.averageRating} / 5.0 Average Citizen Rating (${feedbackAnalytics.totalReviewsCount} Verified Reviews)`
+                  : 'Citizen Delivery Feedback & Rating Analytics Active'}
+              </h3>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 font-mono text-xs">
+            <span className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold">
+              Timely Aid: {feedbackAnalytics.timelyDeliveryPercentage}%
+            </span>
+            <span className="px-3 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-bold">
+              Sufficient Qty: {feedbackAnalytics.sufficientQuantityPercentage}%
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-6 bento-glass rounded-3xl p-5 sm:p-6 relative overflow-hidden flex flex-col justify-between group"
+        >
+          <div>
+            <div className="-mx-5 -mt-5 sm:-mx-6 sm:-mt-6 mb-4 h-36 sm:h-44 relative overflow-hidden">
+              <img
+                src="/images/hero-relief.jpg"
+                alt="Active humanitarian emergency field operation"
+                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+              />
+              <div className="crisync-photo-scrim absolute inset-0" />
+              <div className="keep-white absolute bottom-3 left-4 right-4 flex flex-wrap items-center justify-between gap-2">
+                <span className="crisync-photo-pill-rose inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                  Live Field Operation • Active Response
+                </span>
+                {crises[0] && (
+                  <span className="crisync-photo-pill px-2.5 py-1 rounded-lg text-[10px] font-bold text-white">
+                    {crises[0].region || crises[0].country || 'Sri Lanka'} • {crises[0].severity || 'Active'}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3.5 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
+                    {t.dashboard.briefingBadge}
+                  </span>
+                  <h2 className="text-sm sm:text-base font-extrabold text-white">
+                    {t.dashboard.briefingHeading} ({briefing?.languageName || activeLangOption.fullName})
+                  </h2>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-black/30 border border-white/[0.08]">
+                {LANGUAGE_OPTIONS.map((langOption) => {
+                  const isSelected = briefingLang === langOption.code;
+                  return (
+                    <button
+                      key={langOption.code}
+                      type="button"
+                      onClick={() => onChangeBriefingLanguage(langOption.code)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${isSelected
+                          ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {langOption.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {briefing || crises[0] ? (
+              <>
+                <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight leading-snug">
+                  {briefing?.headline || crises[0]?.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-300 mt-2 leading-relaxed">
+                  {briefing?.operationalSummary || crises[0]?.description}
+                </p>
+              </>
+            ) : (
+              <div className="py-4 text-xs text-zinc-400">
+                <h3 className="text-base font-extrabold text-zinc-200">
+                  No Active Crisis Briefing Yet
+                </h3>
+                <p className="mt-1.5 leading-relaxed">
+                  Declare a new Crisis Event in Coordinator Command Actions to generate live multilingual operational briefings.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-start gap-3">
+            <ShieldAlert className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-zinc-200 leading-relaxed">
+              <strong className="uppercase text-[10px] tracking-wider bg-indigo-600 text-white keep-white px-2 py-0.5 rounded-md mr-2">
+                {t.dashboard.safetyAdviceBadge}
+              </strong>
+              {briefing?.citizenSafetyAdvisory || 'Safety advisories appear automatically once an active crisis and public alerts are published.'}
+            </p>
+          </div>
+        </motion.div>
+
+        {metrics && (
+          <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.openRequests}
+                </span>
+                <AlertOctagon className="w-4 h-4 text-rose-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-white">
+                  <AnimatedCounter value={metrics.unresolvedCasesCount} />
+                </span>
+                <span className="text-xs font-mono text-zinc-500 ml-1">
+                  / {metrics.totalRequests}
+                </span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="rose"
+                points={[
+                  Math.max(1, metrics.unresolvedCasesCount - 2),
+                  Math.max(2, metrics.unresolvedCasesCount - 1),
+                  Math.max(2, metrics.unresolvedCasesCount + 1),
+                  Math.max(1, metrics.criticalOpenCasesCount + 1),
+                  Math.max(1, metrics.unresolvedCasesCount)
+                ]}
+              />
+              <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400 mt-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                <span>{metrics.criticalOpenCasesCount} {t.dashboard.criticalUrgency}</span>
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.avgResponseTime}
+                </span>
+                <Clock className="w-4 h-4 text-indigo-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-indigo-300">
+                  <AnimatedCounter value={metrics.averageResponseTimeMinutes} />
+                </span>
+                <span className="text-xs font-semibold text-zinc-400 ml-1">min</span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="indigo"
+                points={[
+                  Math.max(8, Math.round(metrics.averageResponseTimeMinutes + 12)),
+                  Math.max(6, Math.round(metrics.averageResponseTimeMinutes + 7)),
+                  Math.max(5, Math.round(metrics.averageResponseTimeMinutes + 9)),
+                  Math.max(4, Math.round(metrics.averageResponseTimeMinutes + 2)),
+                  Math.max(3, Math.round(metrics.averageResponseTimeMinutes))
+                ]}
+              />
+              <p className="text-xs text-emerald-400 font-semibold mt-1.5">
+                {t.dashboard.underGoal}
+              </p>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.suppliesDispatched}
+                </span>
+                <PackageCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-emerald-300">
+                  <AnimatedCounter value={metrics.resourceUtilisationPercentage} />%
+                </span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="emerald"
+                points={[
+                  Math.max(5, Math.round(metrics.resourceUtilisationPercentage * 0.45)),
+                  Math.max(8, Math.round(metrics.resourceUtilisationPercentage * 0.62)),
+                  Math.max(10, Math.round(metrics.resourceUtilisationPercentage * 0.78)),
+                  Math.max(12, Math.round(metrics.resourceUtilisationPercentage * 0.9)),
+                  Math.max(12, Math.round(metrics.resourceUtilisationPercentage))
+                ]}
+              />
+              <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-1.5">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, metrics.resourceUtilisationPercentage)}%` }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                  className="h-full bg-emerald-400 rounded-full crisync-shimmer-bar"
+                />
+              </div>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.shelterCapacity}
+                </span>
+                <Home className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-amber-300">
+                  <AnimatedCounter value={metrics.shelterOccupancyPercentage} />%
+                </span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="amber"
+                points={[
+                  Math.max(10, Math.round(metrics.shelterOccupancyPercentage * 0.55)),
+                  Math.max(12, Math.round(metrics.shelterOccupancyPercentage * 0.7)),
+                  Math.max(14, Math.round(metrics.shelterOccupancyPercentage * 0.85)),
+                  Math.max(15, Math.round(metrics.shelterOccupancyPercentage * 0.94)),
+                  Math.max(15, Math.round(metrics.shelterOccupancyPercentage))
+                ]}
+              />
+              <p className="text-xs text-zinc-400 mt-1.5">
+                {metrics.totalShelterOccupied} / {metrics.totalShelterCapacity} {t.dashboard.spacesFilled}
+              </p>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.staffAiReviews}
+                </span>
+                <Sparkles className="w-4 h-4 text-purple-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-purple-300">
+                  <AnimatedCounter value={metrics.aiOverrideFrequencyPercentage} />%
+                </span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="purple"
+                points={[
+                  Math.max(5, Math.round(metrics.aiOverrideFrequencyPercentage * 0.5)),
+                  Math.max(8, Math.round(metrics.aiOverrideFrequencyPercentage * 0.8)),
+                  Math.max(10, Math.round(metrics.aiOverrideFrequencyPercentage * 1.1)),
+                  Math.max(8, Math.round(metrics.aiOverrideFrequencyPercentage * 0.95)),
+                  Math.max(8, Math.round(metrics.aiOverrideFrequencyPercentage))
+                ]}
+              />
+              <p className="text-xs text-zinc-400 mt-1.5">
+                {metrics.reviewedAiRecommendations} {t.dashboard.aiScoresReviewed}
+              </p>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -3, scale: 1.01 }}
+              className="bento-glass bento-glass-hover rounded-3xl p-4 flex flex-col justify-between relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-400">
+                  {t.dashboard.duplicatesCaught}
+                </span>
+                <GitMerge className="w-4 h-4 text-cyan-400" />
+              </div>
+              <div className="my-2">
+                <span className="text-3xl font-extrabold font-mono text-cyan-300">
+                  <AnimatedCounter value={metrics.potentialDuplicatesFlaggedCount} />
+                </span>
+              </div>
+              <div className="h-4" data-spark-stub
+                color="cyan"
+                points={[
+                  1,
+                  Math.max(1, metrics.potentialDuplicatesFlaggedCount),
+                  Math.max(2, metrics.potentialDuplicatesFlaggedCount + 1),
+                  Math.max(1, metrics.duplicateNotificationsPreventedCount),
+                  Math.max(1, metrics.potentialDuplicatesFlaggedCount + 2)
+                ]}
+              />
+              <p className="text-xs text-zinc-400 mt-1.5">
+                {metrics.duplicateNotificationsPreventedCount} {t.dashboard.duplicateSmsBlocked}
+              </p>
+            </motion.div>
+          </div>
+        )}
+      </div>
+
+      {metrics && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="bento-glass rounded-3xl p-5 space-y-3">
+            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-white/[0.08]">
+              <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-indigo-400" />
+                Requests by Aid Category
+              </h3>
+              <span className="text-[11px] font-mono text-zinc-400">{metrics.totalRequests} total</span>
+            </div>
+            <div className="space-y-2.5 text-xs">
+              {Object.entries(metrics.requestsByCategory || {}).length === 0 ? (
+                <p className="text-zinc-400">No request categories recorded yet.</p>
+              ) : (
+                Object.entries(metrics.requestsByCategory || {}).map(([cat, count]) => {
+                  const pct = Math.round((Number(count) / Math.max(1, metrics.totalRequests)) * 100);
+                  return (
+                    <div key={cat} className="space-y-1">
+                      <div className="flex justify-between font-semibold">
+                        <span className="text-zinc-200">{t.citizen.categories[cat] || cat}</span>
+                        <span className="font-mono text-indigo-300">{String(count)} ({pct}%)</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400" style={{ width: `${Math.max(4, pct)}%` }} />
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
