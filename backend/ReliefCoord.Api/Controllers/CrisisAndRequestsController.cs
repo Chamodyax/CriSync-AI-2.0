@@ -414,7 +414,7 @@ public class CrisisAndRequestsController : ControllerBase
             validMagic = true;
         }
 
-        if (false)
+        if (!validMagic)
         {
             return BadRequest(new { message = "File content signature does not match declared file type." });
         }
