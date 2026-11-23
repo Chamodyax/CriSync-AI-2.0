@@ -316,36 +316,442 @@ public class AuthAndUsersController : ControllerBase
         }
 
         if (user.QuickUnlockEnabled && !string.IsNullOrWhiteSpace(user.QuickUnlockDeviceTokenHash))
-    }
-}
+        {
+            return new List<StoredTrustedDevice>
+            {
+                new(
+                    "legacy-device",
+                    "Primary Device",
+                    "localhost",
+                    user.QuickUnlockDeviceTokenHash,
+                    user.QuickUnlockDeviceTokenSalt,
+                    user.QuickUnlockBiometricCredentialId,
+                    user.UpdatedAtUtc)
+            };
+        }
 
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
-    }
-
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
-    {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
-
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
+        return new List<StoredTrustedDevice>();
     }
 
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    private static StoredTrustedDevice? FindMatchingTrustedDevice(AppUser user, string deviceToken)
     {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
+        if (string.IsNullOrWhiteSpace(deviceToken))
+        {
+            return null;
+        }
+
+        foreach (var dev in ParseTrustedDevices(user))
+        {
+            if (HumanitarianOperationsService.VerifyPassword(deviceToken, dev.TokenHash, dev.TokenSalt))
+            {
+                return dev;
+            }
+        }
+
+        return null;
+    }
+
+    private static void ClearQuickUnlockCredentials(AppUser user)
+    {
+        user.QuickUnlockEnabled = false;
+        user.QuickUnlockMode = string.Empty;
+        user.QuickUnlockSecretHash = string.Empty;
+        user.QuickUnlockSecretSalt = string.Empty;
+        user.QuickUnlockDeviceTokenHash = string.Empty;
+        user.QuickUnlockDeviceTokenSalt = string.Empty;
+        user.QuickUnlockBiometricCredentialId = string.Empty;
+        user.QuickUnlockFailedAttempts = 0;
+        user.QuickUnlockTrustedDevicesJson = "[]";
+    }
+
+    [HttpGet("auth/quick-unlock/status")]
+    [Authorize]
+    public async Task<ActionResult<QuickUnlockStatusDto>> GetQuickUnlockStatus(CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var devices = ParseTrustedDevices(user)
+            .Select(d => new TrustedDeviceSummaryDto(
+                d.DeviceId,
+                d.DeviceName,
+                d.OriginHost,
+                !string.IsNullOrWhiteSpace(d.BiometricCredentialId),
+                d.CreatedAtUtc))
+            .ToList();
+
+        return Ok(new QuickUnlockStatusDto(
+            user.QuickUnlockEnabled,
+            user.QuickUnlockMode,
+            devices.Any(d => d.HasBiometrics) || !string.IsNullOrWhiteSpace(user.QuickUnlockBiometricCredentialId),
+            user.QuickUnlockFailedAttempts,
+            devices));
+    }
+
+    [HttpPost("auth/quick-unlock/setup")]
+    [Authorize]
+    public async Task<ActionResult<QuickUnlockSetupResponseDto>> SetupQuickUnlock([FromBody] QuickUnlockSetupRequestDto dto, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null || !user.IsActive)
+        {
+            return Unauthorized(new { message = "Active authenticated account required." });
+        }
+
+        if (!HumanitarianOperationsService.VerifyPassword(dto.CurrentPassword, user.PasswordHash, user.PasswordSalt))
+        {
+            return Unauthorized(new { message = "Current account password is incorrect." });
+        }
+
+        var validation = ValidateQuickUnlockSecret(dto.Mode, dto.Secret);
+        if (!validation.IsValid)
+        {
+            return BadRequest(new { message = validation.ErrorMessage });
+        }
+
+        string rawDeviceToken = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        var (secretHash, secretSalt) = HumanitarianOperationsService.HashPassword(validation.NormalizedSecret);
+        var (deviceHash, deviceSalt) = HumanitarianOperationsService.HashPassword(rawDeviceToken);
+
+        string deviceId = Guid.NewGuid().ToString("N")[..12];
+        string cleanDeviceName = string.IsNullOrWhiteSpace(dto.DeviceName)
+            ? "Trusted Browser"
+            : dto.DeviceName.Trim();
+        string cleanOriginHost = string.IsNullOrWhiteSpace(dto.OriginHost)
+            ? (Request.Host.Value ?? "localhost")
+            : dto.OriginHost.Trim();
+        string cleanCredId = string.IsNullOrWhiteSpace(dto.BiometricCredentialId)
+            ? string.Empty
+            : dto.BiometricCredentialId.Trim();
+
+        var existingDevices = ParseTrustedDevices(user);
+        existingDevices.Add(new StoredTrustedDevice(
+            deviceId,
+            cleanDeviceName,
+            cleanOriginHost,
+            deviceHash,
+            deviceSalt,
+            cleanCredId,
+            DateTime.UtcNow));
+
+        if (existingDevices.Count > 5)
+        {
+            existingDevices = existingDevices.Skip(existingDevices.Count - 5).ToList();
+        }
+
+        user.QuickUnlockEnabled = true;
+        user.QuickUnlockMode = validation.NormalizedMode;
+        user.QuickUnlockSecretHash = secretHash;
+        user.QuickUnlockSecretSalt = secretSalt;
+        user.QuickUnlockDeviceTokenHash = deviceHash;
+        user.QuickUnlockDeviceTokenSalt = deviceSalt;
+        user.QuickUnlockBiometricCredentialId = cleanCredId;
+        user.QuickUnlockFailedAttempts = 0;
+        user.QuickUnlockTrustedDevicesJson = JsonSerializer.Serialize(existingDevices);
+
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Authentication",
+            ActionName = "QuickUnlock_Configured",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                Mode = user.QuickUnlockMode,
+                DeviceId = deviceId,
+                DeviceName = cleanDeviceName,
+                OriginHost = cleanOriginHost,
+                BiometricsEnrolled = !string.IsNullOrWhiteSpace(cleanCredId),
+                TotalTrustedDevices = existingDevices.Count
+            })
+        }, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Ok(new QuickUnlockSetupResponseDto(
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.Role.ToString(),
+            user.QuickUnlockMode,
+            !string.IsNullOrWhiteSpace(cleanCredId),
+            rawDeviceToken,
+            deviceId,
+            cleanDeviceName));
+    }
+
+    [HttpDelete("auth/quick-unlock/devices/{deviceId}")]
+    [Authorize]
+    public async Task<IActionResult> RemoveTrustedDevice(string deviceId, CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        var devices = ParseTrustedDevices(user);
+        int removed = devices.RemoveAll(d => string.Equals(d.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+        if (removed == 0)
+        {
+            return NotFound(new { message = "Trusted device not found." });
+        }
+
+        if (devices.Count == 0)
+        {
+            ClearQuickUnlockCredentials(user);
+        }
+        else
+        {
+            var latest = devices[^1];
+            user.QuickUnlockTrustedDevicesJson = JsonSerializer.Serialize(devices);
+            user.QuickUnlockDeviceTokenHash = latest.TokenHash;
+            user.QuickUnlockDeviceTokenSalt = latest.TokenSalt;
+            user.QuickUnlockBiometricCredentialId = latest.BiometricCredentialId;
+        }
+
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Authentication",
+            ActionName = "QuickUnlock_DeviceRevoked",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { user.Email, DeviceId = deviceId, RemainingDevices = devices.Count })
+        }, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message = "Trusted device removed.", remainingDevices = devices.Count });
+    }
+
+    [HttpDelete("auth/quick-unlock")]
+    [Authorize]
+    public async Task<IActionResult> RevokeQuickUnlock(CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out Guid userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        ClearQuickUnlockCredentials(user);
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Authentication",
+            ActionName = "QuickUnlock_Revoked",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { user.Email })
+        }, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        return Ok(new { message = "Trusted-device Quick Unlock disabled across all devices." });
+    }
+
+    [HttpPost("auth/quick-unlock/verify")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<AuthResponseDto>> VerifyQuickUnlock([FromBody] QuickUnlockVerifyRequestDto dto, CancellationToken cancellationToken)
+    {
+        string clientIp = GetClientIp();
+        var user = await _unitOfWork.Users.GetByIdAsync(dto.UserId, cancellationToken);
+        if (user == null || !user.IsActive || !user.QuickUnlockEnabled)
+        {
+            return Unauthorized(new { message = "Quick Unlock is not active for this device. Please sign in with your password." });
+        }
+
+        var matchedDevice = FindMatchingTrustedDevice(user, dto.DeviceToken);
+        if (matchedDevice == null)
+        {
+            await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+            {
+                EventCategory = "Authentication",
+                ActionName = "QuickUnlock_InvalidDeviceToken",
+                EntityType = nameof(AppUser),
+                EntityId = user.Id.ToString(),
+                ActorUserId = user.Id,
+                ActorUserName = user.FullName,
+                ActorRole = user.Role.ToString(),
+                IpAddress = clientIp,
+                DetailsJson = JsonSerializer.Serialize(new { user.Email })
+            }, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            return Unauthorized(new { message = "Device binding expired or mismatched. Please sign in with your password." });
+        }
+
+        bool validSecret = HumanitarianOperationsService.VerifyPassword((dto.Secret ?? string.Empty).Trim(), user.QuickUnlockSecretHash, user.QuickUnlockSecretSalt);
+        if (!validSecret)
+        {
+            user.QuickUnlockFailedAttempts += 1;
+            bool lockedOut = user.QuickUnlockFailedAttempts >= 3;
+            string action = lockedOut ? "QuickUnlock_LockedOut" : "QuickUnlock_Failed";
+            int attemptsSnapshot = user.QuickUnlockFailedAttempts;
+
+            if (lockedOut)
+            {
+                ClearQuickUnlockCredentials(user);
+            }
+
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+            await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+            {
+                EventCategory = "Authentication",
+                ActionName = action,
+                EntityType = nameof(AppUser),
+                EntityId = user.Id.ToString(),
+                ActorUserId = user.Id,
+                ActorUserName = user.FullName,
+                ActorRole = user.Role.ToString(),
+                IpAddress = clientIp,
+                DetailsJson = "{}"
+            }, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            if (lockedOut)
+            {
+                return Unauthorized(new { message = "Quick Unlock locked after 3 failed attempts. Please sign in with your full password." });
+            }
+
+            int remaining = 3 - attemptsSnapshot;
+            return Unauthorized(new { message = $"Incorrect {user.QuickUnlockMode}. {remaining} attempt(s) remaining before lockout." });
+        }
+
+        user.QuickUnlockFailedAttempts = 0;
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Authentication",
+            ActionName = "QuickUnlock_Succeeded",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = clientIp,
+            DetailsJson = JsonSerializer.Serialize(new { user.Email, Mode = user.QuickUnlockMode, matchedDevice.DeviceId, matchedDevice.DeviceName })
+        }, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string token = _jwtGenerator.GenerateToken(user);
+        return Ok(await BuildAuthResponseAsync(user, token, cancellationToken));
+    }
+
+    [HttpPost("auth/quick-unlock/challenge")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<QuickUnlockChallengeResponseDto>> IssueBiometricChallenge([FromBody] QuickUnlockChallengeRequestDto dto, CancellationToken cancellationToken)
+    {
+        var user = await _unitOfWork.Users.GetByIdAsync(dto.UserId, cancellationToken);
+        if (user == null || !user.IsActive || !user.QuickUnlockEnabled)
+        {
+            return Unauthorized(new { message = "Biometric Quick Unlock is not enrolled on this account." });
+        }
+
+        var matchedDevice = FindMatchingTrustedDevice(user, dto.DeviceToken);
+        if (matchedDevice == null)
+        {
+            return Unauthorized(new { message = "Untrusted device token. Please sign in with your password." });
+        }
+
+        if (string.IsNullOrWhiteSpace(matchedDevice.BiometricCredentialId))
+        {
+            return Unauthorized(new { message = "Biometrics are not enrolled on this specific device. Unlock with your Pattern/PIN or re-enroll on this device." });
+        }
+
+        string challengeId = Guid.NewGuid().ToString("N");
+        string challengeBase64Url = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        QuickUnlockChallenges[challengeId] = (user.Id, challengeBase64Url, DateTime.UtcNow.AddMinutes(2));
+
+        return Ok(new QuickUnlockChallengeResponseDto(challengeId, challengeBase64Url, matchedDevice.BiometricCredentialId));
+    }
+
+    [HttpPost("auth/quick-unlock/biometric")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<AuthResponseDto>> VerifyBiometricQuickUnlock([FromBody] QuickUnlockBiometricVerifyRequestDto dto, CancellationToken cancellationToken)
+    {
+        if (!QuickUnlockChallenges.TryRemove(dto.ChallengeId, out var challengeEntry) ||
+            challengeEntry.ExpiresUtc < DateTime.UtcNow ||
+            challengeEntry.UserId != dto.UserId)
+        {
+            return Unauthorized(new { message = "Biometric challenge is expired or already consumed. Please retry." });
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(dto.UserId, cancellationToken);
+        if (user == null || !user.IsActive || !user.QuickUnlockEnabled)
+        {
+            return Unauthorized(new { message = "Biometric Quick Unlock is not active for this account." });
+        }
+
+        var matchedDevice = FindMatchingTrustedDevice(user, dto.DeviceToken);
+        if (matchedDevice == null ||
+            string.IsNullOrWhiteSpace(matchedDevice.BiometricCredentialId) ||
+            !string.Equals(dto.CredentialId.Trim(), matchedDevice.BiometricCredentialId, StringComparison.Ordinal))
+        {
+            return Unauthorized(new { message = "Biometric credential mismatch on this device." });
+        }
+
+        try
+        {
+            byte[] clientJsonBytes = Base64UrlDecode(dto.ClientDataJsonBase64Url);
+            using var doc = JsonDocument.Parse(clientJsonBytes);
+            string? authType = doc.RootElement.TryGetProperty("type", out var tProp) ? tProp.GetString() : null;
+            string? authChallenge = doc.RootElement.TryGetProperty("challenge", out var cProp) ? cProp.GetString() : null;
+
+            if (!string.Equals(authType, "webauthn.get", StringComparison.Ordinal) ||
+                !string.Equals(authChallenge, challengeEntry.ChallengeBase64Url, StringComparison.Ordinal))
+            {
+                return Unauthorized(new { message = "Invalid WebAuthn assertion payload." });
+            }
+        }
+        catch
+        {
+            return Unauthorized(new { message = "Malformed WebAuthn client assertion payload." });
+        }
+
+        user.QuickUnlockFailedAttempts = 0;
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Authentication",
+            ActionName = "QuickUnlock_BiometricSucceeded",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+    }
 }
