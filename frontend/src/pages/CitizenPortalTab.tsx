@@ -413,34 +413,378 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
   const submitOrQueueRequest = async (payload: any): Promise<'sent' | 'queued'> => {
     const currentlyOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     if (!currentlyOffline) {
+      try {
+        const ok = await onSubmitRequest(payload);
+        if (ok !== false) {
+          setLastSubmitQueuedOffline(false);
+          return 'sent';
+        }
+      } catch {
+      }
+    }
+
+    const queuedEntry: QueuedOfflineRequest = {
+      localId: `OFFLINE-${Date.now()}`,
+      queuedAtIso: new Date().toISOString(),
+      payload
+    };
+    setQueuedOfflineRequests((prev) => [queuedEntry, ...prev]);
+    setLastSubmitQueuedOffline(true);
+    setOfflineStatusNotice(
+      'Request captured in Offline Outbox on this device and queued for automatic upload once connectivity restores.'
+    );
+    return 'queued';
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const submittedHeadline = title;
+    await submitOrQueueRequest(buildRequestPayload());
+    setLastSubmittedTitle(submittedHeadline);
+    setTitle('');
+    setDescription('');
+    setEvidenceFileName('');
+    setAppliedTemplateLabel(null);
+    try {
+      localStorage.removeItem(CITIZEN_FORM_DRAFT_KEY);
+    } catch {}
+  };
+
+  const handleHouseholdSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingFamily(true);
+    try {
+      await onSaveHousehold(buildHouseholdPayload());
+      setFamilyConfirmed(true);
+    } finally {
+      setSavingFamily(false);
+    }
+  };
+
+  const handleStep1SaveAndNext = async () => {
+    setStepError(null);
+    if (headName.trim().length > 0) {
+      setSavingFamily(true);
+      try {
+        await onSaveHousehold(buildHouseholdPayload());
+        setFamilyConfirmed(true);
+      } finally {
+        setSavingFamily(false);
+      }
+    }
+    setWizardStep(2);
+  };
+
+  const handleStep2Next = () => {
+    if (!activeCrisisId && crises.length === 0) {
+      setStepError('No active crisis event is open yet. A Coordinator must declare one before requests can be submitted, or switch to Safe Shelters & AI Help.');
+      return;
+    }
+    if (!category || !urgency) {
+      setStepError('Please select a help category and urgency level before continuing.');
+      return;
+    }
+    setStepError(null);
+    setWizardStep(3);
+  };
+
+  const handleStep3Next = () => {
+    const missing: string[] = [];
+    if (!title.trim()) missing.push('Short Emergency Headline');
+    if (!description.trim()) missing.push('Situation Description');
+    if (!address.trim()) missing.push('Location Address or Landmark');
+
+    if (missing.length > 0) {
+      setStepError(`Please fill in before reviewing: ${missing.join(', ')}.`);
+      return;
+    }
+    setStepError(null);
+    setWizardStep(4);
+  };
+
+  const handleWizardFinalSubmit = async () => {
+    if (!activeCrisisId && (typeof navigator === 'undefined' || navigator.onLine)) {
+      setStepError('An active emergency operation is required before submitting.');
+      return;
+    }
+    setStepError(null);
+    setSubmittingRequest(true);
+    try {
+      const submittedHeadline = title;
+      await submitOrQueueRequest(buildRequestPayload());
+      setLastSubmittedTitle(submittedHeadline);
+      setTitle('');
+      setDescription('');
+      setEvidenceFileName('');
+      setAppliedTemplateLabel(null);
+      try {
+        localStorage.removeItem(CITIZEN_FORM_DRAFT_KEY);
+      } catch {}
+      setWizardStep(5);
+    } finally {
+      setSubmittingRequest(false);
+    }
+  };
+
+  const handleStartNewRequest = () => {
+    setStepError(null);
+    setAppliedTemplateLabel(null);
+    try {
+      localStorage.removeItem(CITIZEN_FORM_DRAFT_KEY);
+    } catch {}
+    setWizardStep(2);
+  };
+
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackRequestId) return;
+    await onSubmitFeedback({
+      assistanceRequestId: feedbackRequestId,
+      rating: Number(rating),
+      comments: feedbackComments,
+      wasAidTimely,
+      wasQuantitySufficient
+    });
+    setFeedbackRequestId(null);
+    setFeedbackComments('');
+    setWasAidTimely(true);
+    setWasQuantitySufficient(true);
+  };
+
+  const handleAskCustomAiQuestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customAiQuery.trim()) return;
+    const reply = generateAutomatedAiSupportReply(language, customAiQuery);
+    setCustomAiReply(reply);
+  };
+
+  const myRequests = requests.filter(
+    (r) => !currentUserId || r.citizenUserId === currentUserId || r.referenceCode?.startsWith('REQ-')
+  );
+
+  const activeFaqObj = t.citizen.aiFaqs.find((f) => f.id === selectedFaqId) || t.citizen.aiFaqs[0];
+
+  const wizardStepsMeta: { num: 1 | 2 | 3 | 4; label: string; sub: string }[] = [
+    { num: 1, label: 'Family Info', sub: 'Household & medical needs' },
+    { num: 2, label: 'Help Type', sub: 'Category, urgency & preset' },
+    { num: 3, label: 'Details & Photo', sub: 'Address, count & evidence' },
+    { num: 4, label: 'Review & Send', sub: 'Confirm & track aid' }
+  ];
+
+  const renderFamilyFormFields = () => (
+    <div className="space-y-3.5 text-xs">
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-1">
+          {t.citizen.headNameLabel}
+        </label>
+        <input
+          type="text"
+          value={headName}
+          onChange={(e) => setHeadName(e.target.value)}
+          placeholder="Full name of family contact person"
+          className="rsvp-input"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">{t.citizen.totalMembersLabel}</label>
+          <input
+            type="number"
+            min={1}
+            value={totalMembers}
+            onChange={(e) => setTotalMembers(Number(e.target.value))}
+            className="rsvp-input"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">{t.citizen.childrenLabel}</label>
+          <input
+            type="number"
+            min={0}
+            value={childrenCount}
+            onChange={(e) => setChildrenCount(Number(e.target.value))}
+            className="rsvp-input"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">{t.citizen.elderlyLabel}</label>
+          <input
+            type="number"
+            min={0}
+            value={elderlyCount}
+            onChange={(e) => setElderlyCount(Number(e.target.value))}
+            className="rsvp-input"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-1">
+          {t.citizen.medicalNotesLabel}
+        </label>
+        <textarea
+          rows={2}
+          value={medicalNotes}
+          onChange={(e) => setMedicalNotes(e.target.value)}
+          placeholder="Allergies, refrigerated insulin, oxygen tank, or dialysis schedule"
+          className="rsvp-input"
+        />
+        <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+          Example: Elderly member requires daily insulin & wheelchair access during evacuation.
+        </p>
+      </div>
+
+      <div className="space-y-2 p-3 rounded-2xl bg-black/20 border border-white/[0.06]">
+        <label className="flex items-center gap-2.5 text-zinc-300 font-semibold cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hasMobility}
+            onChange={(e) => setHasMobility(e.target.checked)}
+            className="w-4 h-4 rounded border-white/20 bg-black/40 text-emerald-500"
+          />
+          {t.citizen.mobilityCheckbox}
+        </label>
+        <label className="flex items-center gap-2.5 text-zinc-300 font-semibold cursor-pointer">
+          <input
+            type="checkbox"
+            checked={hasChronicMedical}
+            onChange={(e) => setHasChronicMedical(e.target.checked)}
+            className="w-4 h-4 rounded border-white/20 bg-black/40 text-emerald-500"
+          />
+          {t.citizen.chronicCheckbox}
+        </label>
+      </div>
+    </div>
+  );
+
+  const renderHelpTypeFields = () => (
+    <div className="space-y-4">
+      {crises.length === 0 ? (
+        <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/35 text-xs text-amber-200 font-semibold">
+          No active crisis event declared yet. An Emergency Coordinator or System Admin must declare a crisis first before emergency requests can be logged.
+        </div>
+      ) : (
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+            Active Emergency Operation
+          </label>
+          <select
+            value={activeCrisisId}
+            onChange={(e) => setSelectedCrisisId(e.target.value)}
+            className="rsvp-input"
+          >
+            {crises.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title} ({c.region} — {c.severity})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 space-y-2.5">
+        <p className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+          <Wand2 className="w-3.5 h-3.5" />
+          {t.citizen.quickTemplatePrompt}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {t.citizen.templates.map((tpl) => {
+            const isPicked = appliedTemplateLabel === tpl.label;
+            return (
+              <button
+                key={tpl.label}
+                type="button"
+                onClick={() => applyQuickTemplate(tpl)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                  isPicked
+                    ? 'bg-indigo-600 border-indigo-400 text-white keep-white shadow-sm'
+                    : 'bg-white/[0.06] hover:bg-indigo-600 hover:text-white text-zinc-200 border-white/15'
+                }`}
+              >
+                {tpl.label}
+              </button>
+            );
+          })}
+        </div>
+        {appliedTemplateLabel && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <span>Template applied (&ldquo;{appliedTemplateLabel}&rdquo;) — you can customize text in the next step!</span>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-2">
+          {t.citizen.step1Category}
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {categoryKeys.map((catKey) => {
+            const active = category === catKey;
+            return (
+              <button
+                key={catKey}
+                type="button"
+                onClick={() => setCategory(catKey)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                  active
+                    ? 'bg-indigo-600 border-indigo-500 text-white keep-white shadow-sm'
+                    : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white/[0.06]'
+                }`}
+              >
+                {t.citizen.categories[catKey] || catKey}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-2">
+          {t.citizen.step2Urgency}
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {Object.keys(urgencyStyles).map((uKey) => {
+            const active = urgency === uKey;
+            const uMeta = t.citizen.urgencies[uKey] || { label: uKey, desc: '' };
+            return (
+              <button
+                key={uKey}
+                type="button"
+                onClick={() => setUrgency(uKey)}
+                className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition-all text-center ${
+                  active
+                    ? `${urgencyStyles[uKey]} ring-2 ring-indigo-500/40 scale-[1.01]`
+                    : 'bg-white/[0.02] border-white/10 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <div className="font-extrabold">{uMeta.label}</div>
+                <div className="text-[10px] opacity-80 font-normal">{uMeta.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderDetailsLocationFields = () => (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+          {t.citizen.step3Summary}
+        </label>
+        <input
+          type="text"
+          required
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (stepError) setStepError(null);
+          }}
+          placeholder="Short emergency summary headline"
+          className="rsvp-input"
+        />
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
