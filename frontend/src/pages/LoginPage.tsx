@@ -694,7 +694,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <button
                   type="button"
                   onClick={startSignInMode}
-                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                  className={`flex-auto py-2 px-2 sm:px-2.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
                     authMode === 'signin'
                       ? 'bg-indigo-600 text-white keep-white shadow-sm'
                       : 'text-zinc-300 hover:text-white'
@@ -706,7 +706,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <button
                   type="button"
                   onClick={startCreateAccountMode}
-                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                  className={`flex-auto py-2 px-2 sm:px-2.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
                     authMode === 'signup'
                       ? 'bg-indigo-600 text-white keep-white shadow-sm'
                       : 'text-zinc-300 hover:text-white'
@@ -718,7 +718,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 <button
                   type="button"
                   onClick={startAdminLogin}
-                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                  className={`flex-auto py-2 px-2 sm:px-2.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
                     authMode === 'admin'
                       ? 'bg-violet-600 text-white keep-white shadow-sm'
                       : 'text-zinc-300 hover:text-white'
@@ -766,5 +766,418 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     className="mb-4 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-[13px] sm:text-sm text-rose-200 font-semibold flex items-center gap-2.5"
                   >
                     <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{errorMessage}</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {authMode === 'signin' ? (
+                <form key="user-signin-form" onSubmit={handleSubmit} className="space-y-4">
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[13px] sm:text-sm font-bold text-zinc-300 mb-1.5">
+                      <Mail className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Email Address</span>
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      autoComplete="username"
+                      required
+                      value={signInEmail}
+                      onChange={(e) => setSignInEmail(e.target.value)}
+                      className="rsvp-input"
+                      placeholder="Enter your registered email address"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[13px] sm:text-sm font-bold text-zinc-300 mb-1.5">
+                      <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Password</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      required
+                      value={signInPassword}
+                      onChange={(e) => setSignInPassword(e.target.value)}
+                      className="rsvp-input"
+                      placeholder="Enter your account password"
+                    />
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.985 }}
+                    type="submit"
+                    disabled={submitting}
+                    className="keep-white w-full py-3.5 px-5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[15px] sm:text-base tracking-tight transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <span>{submitting ? 'Authenticating...' : 'Sign In to CriSync'}</span>
+                    <ArrowUpRight className="w-4 h-4" />
+                  </motion.button>
+                </form>
+              ) : authMode === 'admin' ? (
+                <form key="admin-portal-form" onSubmit={handleSubmit} className="space-y-4">
+                  <div className="p-3.5 rounded-2xl bg-violet-500/15 border border-violet-500/35 text-[13px] sm:text-sm text-violet-200 flex items-start gap-2.5">
+                    <KeyRound className="w-4 h-4 text-violet-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-extrabold text-white">Restricted Administrative Access</p>
+                      <p className="text-xs sm:text-[13px] text-violet-200/80 mt-0.5 leading-relaxed">
+                        Sign in using authorised System Administrator username/email and password. Non-admin accounts are automatically declined from this portal.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[13px] sm:text-sm font-bold text-zinc-300 mb-1.5">
+                      <Mail className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Admin Email / Username</span>
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      autoComplete="username"
+                      required
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      className="rsvp-input"
+                      placeholder="Enter administrator email"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-1.5 text-[13px] sm:text-sm font-bold text-zinc-300 mb-1.5">
+                      <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Admin Password</span>
+                    </label>
+                    <input
+                      type="password"
+                      name="password"
+                      autoComplete="current-password"
+                      required
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      className="rsvp-input"
+                      placeholder="Enter administrator password"
+                    />
+                  </div>
+
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.985 }}
+                    type="submit"
+                    disabled={submitting}
+                    className="keep-white w-full py-3.5 px-5 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white font-extrabold text-[15px] sm:text-base tracking-tight transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <span>{submitting ? 'Authenticating...' : 'Sign In as System Administrator'}</span>
+                    <ArrowUpRight className="w-4 h-4" />
+                  </motion.button>
+                </form>
+              ) : (
+                <form key="public-signup-form" onSubmit={handleSignUpSubmit} className="space-y-3.5 text-[13px] sm:text-sm">
+
+                  <div>
+                    <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                      <Users className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Account Role</span>
+                    </label>
+                    <select
+                      value={regRole}
+                      onChange={(e) => setRegRole(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      {SIGNUP_ROLE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                      Example: Start with Emergency Coordinator to declare a crisis, or register as Affected Citizen to submit help requests.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                      <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                      <span>Full Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="crisync_register_fullname"
+                      autoComplete="off"
+                      required
+                      value={regFullName}
+                      onChange={(e) => setRegFullName(e.target.value)}
+                      placeholder="Enter your full legal name"
+                      className="rsvp-input"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                        <Mail className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Email Address</span>
+                      </label>
+                      <input
+                        type="email"
+                        name="crisync_register_email"
+                        autoComplete="off"
+                        required
+                        readOnly={!unlockedInputs.regEmail}
+                        onFocus={() => unlockInput('regEmail')}
+                        onMouseDown={() => unlockInput('regEmail')}
+                        onKeyDown={() => unlockInput('regEmail')}
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="you@domain.org"
+                        className="rsvp-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                        <Phone className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Phone Number</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="crisync_register_phone"
+                        autoComplete="off"
+                        required
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="+94 77 123 4567"
+                        className="rsvp-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                        <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Password</span>
+                      </label>
+                      <input
+                        type="password"
+                        name="crisync_register_password"
+                        autoComplete="new-password"
+                        required
+                        minLength={6}
+                        readOnly={!unlockedInputs.regPassword}
+                        onFocus={() => unlockInput('regPassword')}
+                        onMouseDown={() => unlockInput('regPassword')}
+                        onKeyDown={() => unlockInput('regPassword')}
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Minimum 6 characters"
+                        className="rsvp-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                        <Globe className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Preferred Language</span>
+                      </label>
+                      <select
+                        value={regLanguage}
+                        onChange={(e) => setRegLanguage(e.target.value)}
+                        className="rsvp-input"
+                      >
+                        {LANGUAGE_OPTIONS.map((lang) => (
+                          <option key={lang.code} value={lang.code}>
+                            {lang.fullName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {regRole === 'Donor' && (
+                    <div className="p-3.5 rounded-2xl bg-lime-500/10 border border-lime-500/25 text-lime-200 text-xs sm:text-[13px] leading-relaxed">
+                      <strong className="text-white block mb-0.5">Public Donor Registration</strong>
+                      Donors self-register independently with immediate access to active humanitarian fundraising campaigns and in-kind supply pledges.
+                    </div>
+                  )}
+
+                  {regRole === 'Volunteer' && (
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs sm:text-[13px] leading-relaxed">
+                      <strong className="text-white block mb-0.5">Pending Volunteer Verification Policy</strong>
+                      Volunteers self-register independently, and your initial account status starts as <strong>Pending</strong> until a dedicated <strong>Volunteer Coordinator</strong> verifies and activates your account.
+                    </div>
+                  )}
+
+                  {regRole === 'PartnerOfficer' && (
+                    <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 space-y-2.5">
+                      <p className="font-extrabold text-zinc-100 flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Partner Organization Partnership Request</span>
+                      </p>
+                      <p className="text-xs sm:text-[13px] text-cyan-200/85 leading-relaxed">
+                        Submit your organization details below to register a partnership request. A System or Organization Admin reviews and approves incoming partner requests.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Organization Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={regOrgName}
+                            onChange={(e) => setRegOrgName(e.target.value)}
+                            placeholder="Partner NGO or agency name"
+                            className="rsvp-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Organization Type</label>
+                          <select
+                            value={regOrgType}
+                            onChange={(e) => setRegOrgType(e.target.value)}
+                            className="rsvp-input"
+                          >
+                            <option value="Partner NGO">Partner NGO</option>
+                            <option value="Medical INGO">Medical INGO</option>
+                            <option value="Logistics Partner">Logistics Partner</option>
+                            <option value="Government Agency">Government Agency</option>
+                            <option value="Community Relief Network">Community Relief Network</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Country / Operating Region</label>
+                        <input
+                          type="text"
+                          required
+                          value={regOrgCountry}
+                          onChange={(e) => setRegOrgCountry(e.target.value)}
+                          placeholder="Country or disaster region covered"
+                          className="rsvp-input"
+                        />
+                        <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                          Example: Sri Lanka / South Asia Regional
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Partnership Proposal & Relief Capacity</label>
+                        <textarea
+                          rows={2}
+                          required
+                          value={regPartnershipProposal}
+                          onChange={(e) => setRegPartnershipProposal(e.target.value)}
+                          placeholder="Describe medical teams, relief supplies, or shelter capacity you offer"
+                          className="rsvp-input resize-none"
+                        />
+                        <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                          Example: Mobile emergency medical units and 500 family water filtration kits
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {regRole === 'Citizen' && (
+                    <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 space-y-3">
+                      <p className="font-extrabold text-zinc-100 flex items-center gap-1.5">
+                        <Home className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Family & Medical Onboarding Profile</span>
+                      </p>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Home Address / Town</label>
+                        <input
+                          type="text"
+                          value={regPrimaryAddress}
+                          onChange={(e) => setRegPrimaryAddress(e.target.value)}
+                          placeholder="Street, town, or nearest landmark"
+                          className="rsvp-input"
+                        />
+                        <p className="text-xs sm:text-[13px] text-zinc-400/85 mt-1 font-normal">
+                          Example: 42 Station Road, Ward 03, Colombo
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Family Size</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={regTotalMembers}
+                            onChange={(e) => setRegTotalMembers(Number(e.target.value))}
+                            className="rsvp-input font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Children</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={regChildrenCount}
+                            onChange={(e) => setRegChildrenCount(Number(e.target.value))}
+                            className="rsvp-input font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-bold text-zinc-300 mb-1">Elderly</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={regElderlyCount}
+                            onChange={(e) => setRegElderlyCount(Number(e.target.value))}
+                            className="rsvp-input font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={regHasMobilityNeeds}
+                            onChange={(e) => setRegHasMobilityNeeds(e.target.checked)}
+                            className="w-4 h-4 rounded"
+                          />
+                          Wheelchair / Mobility Needs
+                        </label>
+                        <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={regHasChronicMedicalNeeds}
+                            onChange={(e) => setRegHasChronicMedicalNeeds(e.target.checked)}
+                            className="w-4 h-4 rounded"
+                          />
+                          Chronic Medical Condition
+                        </label>
+                      </div>
+                      {regHasChronicMedicalNeeds && (
+                        <div>
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
