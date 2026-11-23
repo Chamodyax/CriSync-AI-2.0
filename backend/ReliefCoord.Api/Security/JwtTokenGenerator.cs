@@ -28,7 +28,7 @@ public static class JwtConfigurationHelper
 
         if (environment != null && environment.IsProduction())
         {
-            return DevFallbackSigningKey;
+            throw new InvalidOperationException("JWT_SECRET_KEY must be configured in Production.");
         }
 
         return DevFallbackSigningKey;
@@ -78,35 +78,4 @@ public class JwtTokenGenerator
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-}
-
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
-    }
-
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
-    {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
-
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
-    }
-
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
-    {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
 }
