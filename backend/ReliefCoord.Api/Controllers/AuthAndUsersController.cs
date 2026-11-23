@@ -639,7 +639,7 @@ public class AuthAndUsersController : ControllerBase
                 ActorUserName = user.FullName,
                 ActorRole = user.Role.ToString(),
                 IpAddress = clientIp,
-                DetailsJson = "{}"
+                DetailsJson = JsonSerializer.Serialize(new { user.Email, matchedDevice.DeviceId, Attempts = attemptsSnapshot, LockedOut = lockedOut })
             }, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -753,5 +753,394 @@ public class AuthAndUsersController : ControllerBase
             ActionName = "QuickUnlock_BiometricSucceeded",
             EntityType = nameof(AppUser),
             EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { user.Email, Mode = "WebAuthnBiometric", matchedDevice.DeviceId, matchedDevice.DeviceName })
+        }, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string token = _jwtGenerator.GenerateToken(user);
+        return Ok(await BuildAuthResponseAsync(user, token, cancellationToken));
     }
+
+    [HttpPost("auth/register")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterUserRequestDto dto, CancellationToken cancellationToken)
+    {
+        if (dto.Role == UserRole.DonorOfficer)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Donor / Funding Officer handles financial transactions and can only be invited and appointed exclusively by the Global System Admin."
+            });
+        }
+
+        if (dto.Role is UserRole.CaseManager or UserRole.ShelterAdmin or UserRole.LogisticsManager or UserRole.VolunteerCoordinator or UserRole.EmergencyCoordinator)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = $"Role '{dto.Role}' is an invitation-based operational role. A System Admin or Emergency Coordinator must invite you."
+            });
+        }
+
+        if (dto.Role is UserRole.SystemAdmin or UserRole.OrganizationAdmin)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new
+            {
+                message = "Administrator accounts cannot be publicly self-registered."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password) || string.IsNullOrWhiteSpace(dto.FullName))
+        {
+            return BadRequest(new { message = "FullName, Email, and Password are required." });
+        }
+
+        string normalizedEmail = dto.Email.Trim().ToLowerInvariant();
+        var existing = await _unitOfWork.Users.FindAsync(
+            u => u.Email.ToLower() == normalizedEmail,
+            cancellationToken);
+
+        if (existing.Any())
+        {
+            return Conflict(new { message = "An account with this email already exists." });
+        }
+
+        Guid? assignedOrgId = dto.Role == UserRole.PartnerOfficer ? dto.OrganisationId : null;
+
+        if (dto.Role == UserRole.PartnerOfficer && !string.IsNullOrWhiteSpace(dto.OrganisationName))
+        {
+            var newOrg = new Organisation
+            {
+                Name = dto.OrganisationName.Trim(),
+                OrganisationType = string.IsNullOrWhiteSpace(dto.OrganisationType) ? "Partner NGO" : dto.OrganisationType.Trim(),
+                Country = string.IsNullOrWhiteSpace(dto.Country) ? "International" : dto.Country.Trim(),
+                ContactEmail = normalizedEmail,
+                ContactPhone = dto.PhoneNumber?.Trim() ?? string.Empty,
+                IsVerified = false,
+                PartnershipStatus = "Pending",
+                PartnershipProposal = string.IsNullOrWhiteSpace(dto.PartnershipProposal)
+                    ? "Incoming partner organization registration & collaboration request."
+                    : dto.PartnershipProposal.Trim()
+            };
+            await _unitOfWork.Organisations.AddAsync(newOrg, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            assignedOrgId = newOrg.Id;
+        }
+
+        string accountStatus = dto.Role switch
+        {
+            UserRole.Volunteer => "Pending",
+            UserRole.PartnerOfficer => "PendingPartnershipApproval",
+            _ => "Active"
+        };
+
+        var (hash, salt) = HumanitarianOperationsService.HashPassword(dto.Password);
+        var user = new AppUser
+        {
+            FullName = dto.FullName.Trim(),
+            Email = normalizedEmail,
+            PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty,
+            PasswordHash = hash,
+            PasswordSalt = salt,
+            Role = dto.Role,
+            PreferredLanguage = string.IsNullOrWhiteSpace(dto.PreferredLanguage) ? "en" : dto.PreferredLanguage,
+            OrganisationId = assignedOrgId,
+            IsActive = true,
+            AccountStatus = accountStatus
+        };
+
+        await _unitOfWork.Users.AddAsync(user, cancellationToken);
+
+        if (dto.Role == UserRole.Volunteer)
+        {
+            var volunteerProfile = new VolunteerProfile
+            {
+                UserId = user.Id,
+                FullName = user.FullName,
+                SkillsCsv = string.IsNullOrWhiteSpace(dto.SkillsCsv) ? "General Emergency Relief" : dto.SkillsCsv.Trim(),
+                LanguagesCsv = string.IsNullOrWhiteSpace(dto.LanguagesCsv) ? user.PreferredLanguage : dto.LanguagesCsv.Trim(),
+                AvailabilitySchedule = string.IsNullOrWhiteSpace(dto.AvailabilitySchedule) ? "Available On-Call" : dto.AvailabilitySchedule.Trim(),
+                IsVerified = false,
+                IsAvailable = true,
+                CurrentLatitude = 6.9271,
+                CurrentLongitude = 79.8612,
+                CompletedTasksCount = 0
+            };
+            await _unitOfWork.Volunteers.AddAsync(volunteerProfile, cancellationToken);
+        }
+
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Registration",
+            ActionName = $"SelfRegistered_{dto.Role}_{accountStatus}",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { user.Email, user.AccountStatus, user.OrganisationId })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string organisationName = await ResolveOrganisationNameAsync(user, cancellationToken);
+        string token = _jwtGenerator.GenerateToken(user);
+        return Ok(new AuthResponseDto(
+            token,
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.Role.ToString(),
+            user.PreferredLanguage,
+            user.OrganisationId,
+            organisationName,
+            user.AccountStatus,
+            user.PhoneNumber,
+            user.ProfilePhotoUrl
+        ));
+    }
+
+    [HttpGet("auth/demo-accounts")]
+    [AllowAnonymous]
+    public ActionResult GetDemoAccounts()
+    {
+        return Ok(Array.Empty<object>());
+    }
+
+    [HttpGet("organisations")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetOrganisations(CancellationToken cancellationToken)
+    {
+        var orgs = await _unitOfWork.Organisations.GetAllAsync(cancellationToken);
+        return Ok(orgs);
+    }
+
+    [HttpGet("users/me")]
+    [Authorize]
+    public async Task<ActionResult> GetMyProfile(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound();
+        }
+
+        string organisationName = await ResolveOrganisationNameAsync(user, cancellationToken);
+        return Ok(new
+        {
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.PhoneNumber,
+            Role = user.Role.ToString(),
+            user.PreferredLanguage,
+            user.OrganisationId,
+            OrganisationName = organisationName,
+            user.AccountStatus,
+            user.ProfilePhotoUrl
+        });
+    }
+
+    [HttpPut("users/me")]
+    [Authorize]
+    public async Task<ActionResult<AuthResponseDto>> UpdateMyProfile(
+        [FromBody] UpdateMyProfileDto dto,
+        CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.FullName))
+        {
+            return BadRequest(new { message = "Full name is required." });
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return NotFound(new { message = "User account not found." });
+        }
+
+        bool passwordChanged = false;
+        if (!string.IsNullOrWhiteSpace(dto.NewPassword))
+        {
+            if (string.IsNullOrWhiteSpace(dto.CurrentPassword))
+            {
+                return BadRequest(new { message = "Please enter your current password before setting a new password." });
+            }
+
+            if (!HumanitarianOperationsService.VerifyPassword(dto.CurrentPassword, user.PasswordHash, user.PasswordSalt))
+            {
+                return BadRequest(new { message = "Current password is incorrect." });
+            }
+
+            if (dto.NewPassword.Trim().Length < 6)
+            {
+                return BadRequest(new { message = "New password must be at least 6 characters long." });
+            }
+
+            var (newHash, newSalt) = HumanitarianOperationsService.HashPassword(dto.NewPassword.Trim());
+            user.PasswordHash = newHash;
+            user.PasswordSalt = newSalt;
+            passwordChanged = true;
+        }
+
+        if (dto.ProfilePhotoUrl != null)
+        {
+            var trimmedPhoto = dto.ProfilePhotoUrl.Trim();
+            if (trimmedPhoto.Length > 350000)
+            {
+                return BadRequest(new { message = "Profile photo size is too large. Please choose a smaller image." });
+            }
+
+            if (trimmedPhoto.Length > 0)
+            {
+                bool allowedPrefix =
+                    trimmedPhoto.StartsWith("data:image/jpeg;base64,", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedPhoto.StartsWith("data:image/jpg;base64,", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedPhoto.StartsWith("data:image/png;base64,", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedPhoto.StartsWith("data:image/webp;base64,", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedPhoto.StartsWith("data:image/svg+xml;", StringComparison.OrdinalIgnoreCase) ||
+                    trimmedPhoto.StartsWith("/images/", StringComparison.OrdinalIgnoreCase);
+
+                if (!allowedPrefix)
+                {
+                    return BadRequest(new { message = "Invalid profile photo format. Only image data URIs (JPEG, PNG, WebP, SVG) or /images/ assets are permitted." });
+                }
+            }
+
+            user.ProfilePhotoUrl = trimmedPhoto;
+        }
+
+        user.FullName = dto.FullName.Trim();
+        user.PhoneNumber = dto.PhoneNumber?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(dto.PreferredLanguage))
+        {
+            user.PreferredLanguage = dto.PreferredLanguage.Trim();
+        }
+        user.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+
+        var volunteers = await _unitOfWork.Volunteers.FindAsync(v => v.UserId == userId, cancellationToken);
+        foreach (var v in volunteers)
+        {
+            v.FullName = user.FullName;
+            v.UpdatedAtUtc = DateTime.UtcNow;
+            await _unitOfWork.Volunteers.UpdateAsync(v, cancellationToken);
+        }
+
+        var households = await _unitOfWork.Households.FindAsync(h => h.UserId == userId, cancellationToken);
+        foreach (var h in households)
+        {
+            h.HouseholdHeadName = user.FullName;
+            h.UpdatedAtUtc = DateTime.UtcNow;
+            await _unitOfWork.Households.UpdateAsync(h, cancellationToken);
+        }
+
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "ProfileManagement",
+            ActionName = "UserProfileUpdated",
+            EntityType = nameof(AppUser),
+            EntityId = user.Id.ToString(),
+            ActorUserId = user.Id,
+            ActorUserName = user.FullName,
+            ActorRole = user.Role.ToString(),
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                user.FullName,
+                user.PhoneNumber,
+                user.PreferredLanguage,
+                PasswordChanged = passwordChanged,
+                HasProfilePhoto = !string.IsNullOrEmpty(user.ProfilePhotoUrl)
+            })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        string organisationName = await ResolveOrganisationNameAsync(user, cancellationToken);
+        string token = _jwtGenerator.GenerateToken(user);
+        return Ok(new AuthResponseDto(
+            token,
+            user.Id,
+            user.FullName,
+            user.Email,
+            user.Role.ToString(),
+            user.PreferredLanguage,
+            user.OrganisationId,
+            organisationName,
+            user.AccountStatus,
+            user.PhoneNumber,
+            user.ProfilePhotoUrl
+        ));
+    }
+
+    [HttpGet("users/households/me")]
+    [Authorize]
+    public async Task<ActionResult> GetMyHousehold(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var profiles = await _unitOfWork.Households.FindAsync(h => h.UserId == userId, cancellationToken);
+        return Ok(profiles.FirstOrDefault());
+    }
+
+    [HttpPost("users/households")]
+    [Authorize]
+    public async Task<ActionResult> UpsertHousehold([FromBody] UpsertHouseholdDto dto, CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+    }
+}
+
+internal static class LegacySessionTokenValidator
+{
+    internal static bool IsTokenWellFormed(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        string[] segments = token.Split('.');
+        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+    }
+
+    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    {
+        "Admin" => "SystemAdmin",
+        "Coordinator" => "EmergencyCoordinator",
+        "Logistics" => "LogisticsManager",
+        "Shelter" => "ShelterAdmin",
+        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
+    };
+
+    internal static int ComputeLockoutRemainingMinutes(int failedCount)
+    {
+        if (failedCount < 3) return 0;
+        return Math.Min(60, (failedCount - 2) * 15);
+    }
+
+    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    {
+        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
+        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
+    };
 }
