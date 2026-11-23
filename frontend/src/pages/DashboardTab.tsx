@@ -2190,7 +2190,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             className="crisync-lightbox-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
           >
             <motion.div
-              data-lightbox="open"
+              role="dialog"
+              aria-modal="true"
               aria-label={lightboxPhoto.title || 'Field evidence photo preview'}
               initial={{ opacity: 0, scale: 0.94, y: 14 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2241,7 +2242,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/80 backdrop-blur-md"
           >
             <motion.div
-              data-lightbox="open"
+              role="dialog"
+              aria-modal="true"
               aria-labelledby="destructive-modal-title"
               initial={{ opacity: 0, scale: 0.95, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -2426,32 +2428,3 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
