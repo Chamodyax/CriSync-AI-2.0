@@ -124,7 +124,7 @@ builder.Services.AddCors(options =>
                 }
                 if (Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
                     uri.Scheme == Uri.UriSchemeHttps &&
-                    (uri.Host.EndsWith(".ngrok-free.app", StringComparison.OrdinalIgnoreCase) ||
+                    (
                      uri.Host.EndsWith(".ngrok-free.dev", StringComparison.OrdinalIgnoreCase) ||
                      uri.Host.EndsWith(".ngrok.io", StringComparison.OrdinalIgnoreCase)))
                 {
@@ -148,7 +148,7 @@ builder.Services.AddRateLimiter(options =>
             context.Connection.RemoteIpAddress?.ToString() ?? "local",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = isTestingEnv ? 1000 : 30,
+                PermitLimit = isTestingEnv ? 1000 : 120,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -168,3 +168,101 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<IServiceResilienceMonitor, ServiceResilienceMonitor>();
 builder.Services.AddSingleton<IGovernanceConfigProvider, GovernanceConfigProvider>();
 builder.Services.AddSingleton<InMemoryDomainEventQueue>();
+builder.Services.AddSingleton<IDomainEventPublisher>(sp => sp.GetRequiredService<InMemoryDomainEventQueue>());
+builder.Services.AddHostedService<AsynchronousDomainEventWorker>();
+
+builder.Services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+builder.Services.AddScoped<IMappingProviderService, ResilientMappingProviderService>();
+builder.Services.AddScoped<IAiProviderFactory, AiProviderFactory>();
+builder.Services.AddScoped<INotificationChannelFactory, NotificationChannelFactory>();
+
+builder.Services.AddScoped<IResourceAllocationStrategy, MultiConstraintOptimalStrategy>();
+builder.Services.AddScoped<IResourceAllocationStrategy, ShortageProportionalContentionStrategy>();
+builder.Services.AddScoped<IResourceAllocationStrategy, ProximityFirstStrategy>();
+builder.Services.AddScoped<ResourceAllocationStrategyResolver>();
+
+builder.Services.AddScoped<HumanitarianOperationsService>();
+builder.Services.AddSingleton<JwtTokenGenerator>();
+
+var app = builder.Build();
+
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var exceptionFeature = context.Features.Get<IExceptionHandlerFeature>();
+        var exception = exceptionFeature?.Error;
+
+        context.Response.ContentType = "application/json";
+        context.Response.StatusCode = exception switch
+        {
+            UnauthorizedAccessException => StatusCodes.Status403Forbidden,
+            KeyNotFoundException => StatusCodes.Status404NotFound,
+            InvalidOperationException => StatusCodes.Status409Conflict,
+            ArgumentException => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = exception?.GetType().Name ?? "Error",
+            message = exception?.Message ?? "An unexpected error occurred."
+        });
+    });
+});
+
+if (!app.Environment.IsDevelopment() && !app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.UseCors("AllowFrontend");
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ReliefCoordDbContext>();
+    await DatabaseSeeder.EnsureCleanProductionDatabaseAsync(db);
+}
+
+app.Run();
+
+public partial class Program { }
+
+internal static class LegacySessionTokenValidator
+{
+    internal static bool IsTokenWellFormed(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        string[] segments = token.Split('.');
+        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+    }
+
+    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    {
+        "Admin" => "SystemAdmin",
+        "Coordinator" => "EmergencyCoordinator",
+        "Logistics" => "LogisticsManager",
+        "Shelter" => "ShelterAdmin",
+        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
+    };
+
+    internal static int ComputeLockoutRemainingMinutes(int failedCount)
+    {
+        if (failedCount < 3) return 0;
+        return Math.Min(60, (failedCount - 2) * 15);
+    }
+
+    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    {
+        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
+        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
+    };
+}
