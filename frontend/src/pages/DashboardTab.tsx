@@ -435,34 +435,442 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
       setCommandSubmitting(false);
     }
   };
+
+  const langKey = (briefingLang as SupportedLanguage) || 'en';
+  const t = TRANSLATIONS[langKey] || TRANSLATIONS.en;
+
+  const toggleExpandCard = (id: string) => {
+    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const canManageCases =
+    userRole === 'EmergencyCoordinator' ||
+    userRole === 'CaseManager' ||
+    userRole === 'OrganizationAdmin' ||
+    userRole === 'SystemAdmin';
+
+  const canReviewAi =
+    userRole === 'EmergencyCoordinator' ||
+    userRole === 'CaseManager' ||
+    userRole === 'OrganizationAdmin' ||
+    userRole === 'SystemAdmin';
+
+  const isRequestOverdue = (req: any) => {
+    const isTerminal =
+      req.status === 'Fulfilled' ||
+      req.status === 'Closed' ||
+      req.status === 'MergedAsDuplicate' ||
+      req.status === 'Rejected';
+    if (isTerminal || !req.createdAtUtc) return false;
+    const ageHours = (Date.now() - new Date(req.createdAtUtc).getTime()) / 3600000;
+    return ageHours >= 4;
+  };
+
+  const criticalCount = requests.filter(
+    (r) => r.finalApprovedUrgency === 'LifeThreatening' || r.finalApprovedUrgency === 'Critical'
+  ).length;
+  const overdueCount = requests.filter((r) => isRequestOverdue(r)).length;
+  const suspiciousCount = requests.filter((r) => Boolean(r.isFlaggedSuspicious)).length;
+  const duplicateCount = requests.filter((r) => Boolean(r.isFlaggedPotentialDuplicate)).length;
+
+  const filteredRequests = requests
+    .filter((req) => {
+      const matchesSearch =
+        !searchQuery.trim() ||
+        req.referenceCode?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        req.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        req.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        req.locationAddress?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+      if (categoryFilter !== 'ALL' && req.category !== categoryFilter) return false;
+      if (urgencyFilter !== 'ALL' && req.finalApprovedUrgency !== urgencyFilter) return false;
+
+      if (activeFilter === 'critical') {
+        return req.finalApprovedUrgency === 'LifeThreatening' || req.finalApprovedUrgency === 'Critical';
+      }
+      if (activeFilter === 'overdue') {
+        return isRequestOverdue(req);
+      }
+      if (activeFilter === 'suspicious') {
+        return Boolean(req.isFlaggedSuspicious);
+      }
+      if (activeFilter === 'duplicates') {
+        return Boolean(req.isFlaggedPotentialDuplicate);
+      }
+      if (activeFilter === 'verified') {
+        return req.status === 'Verified' || req.status === 'Escalated' || req.status === 'Dispatched';
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'newest') {
+        return new Date(b.createdAtUtc || 0).getTime() - new Date(a.createdAtUtc || 0).getTime();
+      }
+      if (sortBy === 'people') {
+        return (Number(b.affectedPeopleCount) || 0) - (Number(a.affectedPeopleCount) || 0);
+      }
+      return (Number(b.priorityScore) || 0) - (Number(a.priorityScore) || 0);
+    });
+
+  const handleExportSitRepCsv = () => {
+    const csvRows: string[] = [
+      [
+        'ReferenceCode',
+        'Category',
+        'Urgency',
+        'PriorityScore',
+        'Status',
+        'Title',
+        'AffectedPeople',
+        'RequestedQty',
+        'LocationAddress',
+        'DuplicateFlag',
+        'SuspiciousFlag',
+        'CreatedAtUtc'
+      ].join(',')
+    ];
+
+    for (const r of filteredRequests) {
+      const escapeCsv = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+      csvRows.push(
+        [
+          escapeCsv(r.referenceCode),
+          escapeCsv(r.category),
+          escapeCsv(r.finalApprovedUrgency),
+          escapeCsv(r.priorityScore),
+          escapeCsv(r.status),
+          escapeCsv(r.title),
+          escapeCsv(r.affectedPeopleCount),
+          escapeCsv(r.requestedQuantity),
+          escapeCsv(r.locationAddress),
+          escapeCsv(Boolean(r.isFlaggedPotentialDuplicate)),
+          escapeCsv(Boolean(r.isFlaggedSuspicious)),
+          escapeCsv(r.createdAtUtc)
+        ].join(',')
+      );
+    }
+
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CriSync_SitRep_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSitRepJson = () => {
+    const payload = sitRepReport || {
+      generatedAtUtc: new Date().toISOString(),
+      activeCrisisTitle: crises[0]?.title || 'Active Operation',
+      metrics,
+      feedbackAnalytics,
+      exportedRequestsCount: filteredRequests.length,
+      requests: filteredRequests
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `CriSync_SitRep_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const activeLangOption = LANGUAGE_OPTIONS.find((l) => l.code === langKey) || LANGUAGE_OPTIONS[0];
+
+  return (
+    <div className="space-y-6" dir={t.dir}>
+      {crises.length === 0 && requests.length === 0 && (
+        <div className="bento-glass rounded-3xl p-5 border border-indigo-500/35 bg-indigo-500/[0.06] flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1.5 max-w-3xl">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-300">
+              <Sparkles className="w-3.5 h-3.5" />
+              Getting Started — Clean Project Setup Guide
+            </span>
+            <h2 className="text-base sm:text-lg font-extrabold text-white">
+              Welcome to CriSync Live Mode (All Demo Data Removed)
+            </h2>
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              1) As <strong className="text-white">Emergency Coordinator</strong> or <strong className="text-white">System Admin</strong>, click <strong className="text-indigo-300">Declare New Crisis Event</strong> below to open an active emergency. 2) Broadcast a <strong className="text-rose-300">Public Alert</strong> and add safe <strong className="text-amber-300">Shelters</strong> & <strong className="text-emerald-300">Warehouse Stock</strong>. 3) Register or sign in as a <strong className="text-sky-300">Citizen</strong> to submit real help requests for AI triage and dispatch.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {(canDeclareOrAlert || canRegisterCitizenProxy || canInviteOperational) && (
+        <div className="bento-glass rounded-3xl overflow-hidden border border-indigo-500/30">
+          <button
+            type="button"
+            onClick={() => setCommandOpen((prev) => !prev)}
+            className="w-full px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-left hover:bg-white/[0.03] transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+                <Radio className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                  Command, Invitations & Field Onboarding Actions
+                </span>
+                <h2 className="text-sm sm:text-base font-extrabold text-white">
+                  {userRole === 'CaseManager'
+                    ? 'Register Offline Citizens on Behalf of Victims'
+                    : 'Broadcast Alerts, Declare Crises, Register Citizens & Invite Operational Staff'}
+                </h2>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl bg-white/[0.05] border border-white/15 text-zinc-200">
+              <span>{commandOpen ? 'Hide Command Panel' : 'Open Command Panel'}</span>
+              {commandOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </span>
+          </button>
+
+          <AnimatePresence>
+            {commandOpen && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25, ease: 'easeOut' }}
+                className="overflow-hidden"
+              >
+                <div className="px-5 pb-5 pt-2 border-t border-white/[0.08] space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {canDeclareOrAlert && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setCommandTab('alert')}
+                          className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-1.5 ${commandTab === 'alert'
+                          ? 'bg-rose-600 border-rose-500 text-white keep-white shadow-sm'
+                          : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Broadcast Public Alert</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCommandTab('crisis')}
+                          className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-1.5 ${commandTab === 'crisis'
+                          ? 'bg-indigo-600 border-indigo-500 text-white keep-white shadow-sm'
+                          : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" />
+                      <span>Declare New Crisis Event</span>
+                    </button>
+                    {onCreateOperationalArea && crises.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCommandTab('operational-zone')}
+                            className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-1.5 ${commandTab === 'operational-zone'
+                            ? 'bg-cyan-600 border-cyan-500 text-white keep-white shadow-sm'
+                            : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>Add Operational Area</span>
+                      </button>
+                    )}
+                  </>
+                )}
+                {canRegisterCitizenProxy && onRegisterCitizenOnBehalf && (
+                  <button
+                    type="button"
+                    onClick={() => setCommandTab('citizen-behalf')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-1.5 ${commandTab === 'citizen-behalf'
+                        ? 'bg-sky-600 border-sky-500 text-white keep-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Register Citizen on Behalf</span>
+                  </button>
+                )}
+                {canInviteOperational && onInviteStaff && (
+                  <button
+                    type="button"
+                    onClick={() => setCommandTab('invite-staff')}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition flex items-center gap-1.5 ${commandTab === 'invite-staff'
+                        ? 'bg-amber-600 border-amber-500 text-white keep-white shadow-sm'
+                        : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Invite Operational Role</span>
+                  </button>
+                )}
+              </div>
+
+              {commandTab === 'citizen-behalf' && canRegisterCitizenProxy ? (
+                    <form key="citizen-behalf-form" onSubmit={handleCitizenProxySubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                  <div className="md:col-span-3 p-3 rounded-2xl bg-sky-500/10 border border-sky-500/30 text-sky-200 text-[11px]">
+                    <strong className="text-white">Case Manager Proxy Onboarding:</strong> Register an affected Citizen who lacks a phone or internet connection during a disaster, including their household vulnerability profile.
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Citizen Full Name</label>
+                    <input
+                      type="text"
+                      name="crisync_proxy_citizen_name"
+                      autoComplete="off"
+                      required
+                      value={citizenProxyForm.fullName}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, fullName: e.target.value })}
+                      placeholder="Affected resident full name"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Email or Household ID</label>
+                    <input
+                      type="email"
+                      name="crisync_proxy_citizen_email"
+                      autoComplete="off"
+                      required
+                      readOnly={!unlockedFields.citizenEmail}
+                      onFocus={() => unlockField('citizenEmail')}
+                      onMouseDown={() => unlockField('citizenEmail')}
+                      onKeyDown={() => unlockField('citizenEmail')}
+                      value={citizenProxyForm.email}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, email: e.target.value })}
+                      placeholder="citizen.name@offline.crisync.org"
+                      className="rsvp-input"
+                    />
+                    <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                      Example: kamal.perera@offline.crisync.org (if resident has no email)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Contact Phone / Neighbour Phone</label>
+                    <input
+                      type="text"
+                      name="crisync_proxy_citizen_phone"
+                      autoComplete="off"
+                      value={citizenProxyForm.phoneNumber}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, phoneNumber: e.target.value })}
+                      placeholder="Optional contact number"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Assigned Access Password</label>
+                    <input
+                      type="text"
+                      name="crisync_proxy_citizen_password"
+                      autoComplete="new-password"
+                      required
+                      minLength={6}
+                      readOnly={!unlockedFields.citizenPassword}
+                      onFocus={() => unlockField('citizenPassword')}
+                      onMouseDown={() => unlockField('citizenPassword')}
+                      onKeyDown={() => unlockField('citizenPassword')}
+                      value={citizenProxyForm.password}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, password: e.target.value })}
+                      placeholder="Temporary access password"
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block font-bold text-zinc-300 mb-1">Residential Location / Relief Zone</label>
+                    <input
+                      type="text"
+                      required
+                      value={citizenProxyForm.primaryAddress}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, primaryAddress: e.target.value })}
+                      placeholder="Village, street, or shelter camp name"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Total Family Members</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={citizenProxyForm.totalMembers}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, totalMembers: Number(e.target.value) })}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Children Count</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={citizenProxyForm.childrenCount}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, childrenCount: Number(e.target.value) })}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Elderly Count</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={citizenProxyForm.elderlyCount}
+                      onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, elderlyCount: Number(e.target.value) })}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-3 flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={citizenProxyForm.hasMobilityNeeds}
+                        onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, hasMobilityNeeds: e.target.checked })}
+                        className="w-4 h-4 rounded"
+                      />
+                      Mobility / Wheelchair Support Needed
+                    </label>
+                    <label className="flex items-center gap-2 text-zinc-200 font-semibold cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={citizenProxyForm.hasChronicMedicalNeeds}
+                        onChange={(e) => setCitizenProxyForm({ ...citizenProxyForm, hasChronicMedicalNeeds: e.target.checked })}
+                        className="w-4 h-4 rounded"
+                      />
+                      Chronic Medical / Medication Needs
+                    </label>
+                  </div>
+                  <div className="md:col-span-3 flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={commandSubmitting}
+                      className="keep-white px-5 py-2.5 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white font-extrabold flex items-center gap-2 shadow-sm disabled:opacity-50"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>{commandSubmitting ? 'Registering...' : 'Register Citizen Account & Family Profile'}</span>
+                    </button>
+                  </div>
+                </form>
+              ) : commandTab === 'invite-staff' && canInviteOperational ? (
+                    <form key="invite-staff-form" onSubmit={handleInviteStaffSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                  <div className="md:col-span-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-[11px]">
+                    <strong className="text-white">Invitation Authority:</strong> System Admin and Emergency Coordinator can invite <strong>Case Manager</strong>, <strong>Shelter Admin</strong>, <strong>Resource & Logistics Manager</strong>, and <strong>Volunteer Coordinator</strong>. Note: <strong>Donor / Funding Officer</strong> handles money & financial transactions and can only be invited exclusively by the <strong>Global System Admin</strong>.
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Invited Role</label>
+                    <select
+                      value={inviteForm.role}
+                      onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                      className="rsvp-input"
+                    >
+                      <option value="CaseManager">Case Manager</option>
+                      <option value="ShelterAdmin">Shelter Administrator</option>
+                      <option value="LogisticsManager">Resource & Logistics Manager</option>
+                      <option value="VolunteerCoordinator">Volunteer Coordinator</option>
+                      {userRole === 'SystemAdmin' && (
+                        <option value="DonorOfficer">Donor / Funding Officer (Global System Admin Only)</option>
+                      )}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Full Name</label>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
