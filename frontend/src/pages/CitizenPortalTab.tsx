@@ -112,7 +112,7 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
 }) => {
   const [savedDraft] = useState<any>(() => {
     try {
-      const raw = null;
+      const raw = localStorage.getItem(CITIZEN_FORM_DRAFT_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
