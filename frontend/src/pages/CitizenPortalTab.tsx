@@ -786,5 +786,408 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
           placeholder="Short emergency summary headline"
           className="rsvp-input"
         />
+        <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+          Example: Stranded family of 4 needing clean water and infant food packs
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+          {t.citizen.step4Description}
+        </label>
+        <textarea
+          rows={3}
+          required
+          value={description}
+          onChange={(e) => {
+            setDescription(e.target.value);
+            if (stepError) setStepError(null);
+          }}
+          placeholder="Describe access conditions, urgent medical conditions, and number of people"
+          className="rsvp-input"
+        />
+        <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+          Example: Road submerged by 1 meter; elderly patient on blood-pressure medication cannot walk to main road.
+        </p>
+      </div>
+
+      <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-indigo-400" />
+            {t.citizen.step5Location}
+          </label>
+        </div>
+
+        <input
+          type="text"
+          required
+          value={address}
+          onChange={(e) => {
+            setAddress(e.target.value);
+            if (stepError) setStepError(null);
+          }}
+          placeholder="Enter street address, village, or nearest landmark"
+          className="rsvp-input"
+        />
+        <p className="text-[11px] text-zinc-400/75 opacity-75 font-normal">
+          Example: 18 Temple Lane, near Municipal Water Tank (or expand GPS below)
+        </p>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowExactGps((v) => !v)}
+            className="text-[11px] font-semibold text-indigo-400 hover:underline flex items-center gap-1"
+          >
+            {showExactGps ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            <span>
+              GPS ({latitude}, {longitude})
+            </span>
+          </button>
+
+          {showExactGps && (
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              <div>
+                <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+                  Latitude
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={latitude}
+                  onChange={(e) => setLatitude(Number(e.target.value))}
+                  className="rsvp-input font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-zinc-400 mb-1">
+                  Longitude
+                </label>
+                <input
+                  type="number"
+                  step="0.0001"
+                  value={longitude}
+                  onChange={(e) => setLongitude(Number(e.target.value))}
+                  className="rsvp-input font-mono"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">
+            {t.citizen.peopleCountLabel}
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={peopleCount}
+            onChange={(e) => setPeopleCount(Number(e.target.value))}
+            className="rsvp-input"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1">
+            {t.citizen.quantityLabel}
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+            className="rsvp-input"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-zinc-300 mb-1 flex items-center gap-1">
+            <Upload className="w-3.5 h-3.5 text-indigo-400" />
+            {t.citizen.photoLabel}
+          </label>
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.pdf"
+            onChange={handleFileChange}
+            className="w-full text-xs text-zinc-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border file:border-indigo-500/30 file:text-xs file:font-bold file:bg-indigo-500/20 file:text-indigo-200 hover:file:bg-indigo-500/30"
+          />
+          {evidenceFileName && (
+            <div className="mt-1.5 flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[11px] font-bold text-emerald-300">
+              <span className="truncate inline-flex items-center gap-1">
+                <Camera className="w-3 h-3 shrink-0" />
+                {evidenceFileName}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEvidenceFileName('')}
+                className="text-zinc-300 hover:text-white shrink-0"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <label className="flex items-center gap-3 text-xs sm:text-sm font-semibold text-zinc-200 cursor-pointer p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/40 transition">
+        <input
+          type="checkbox"
+          checked={accessibility}
+          onChange={(e) => setAccessibility(e.target.checked)}
+          className="w-4 h-4 rounded border-white/20 bg-black/40 text-indigo-500"
+        />
+        <span>{t.citizen.wheelchairCheckbox}</span>
+      </label>
+    </div>
+  );
+
+  const renderAiAssistantPanel = () => (
+    <div className="bento-glass rounded-3xl p-5 sm:p-6 border border-indigo-500/30 space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+        <div className="flex items-center gap-3">
+          <div className="keep-white w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shrink-0">
+            <Bot className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 block">
+              {t.citizen.aiAssistantBadge}
+            </span>
+            <h2 className="text-lg font-extrabold text-white">
+              {t.citizen.aiAssistantTitle}
+            </h2>
+            <p className="text-xs text-zinc-400">
+              {t.citizen.aiAssistantSubtitle}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 p-1 rounded-xl bg-black/25 border border-white/10">
+          {LANGUAGE_OPTIONS.map((l) => (
+            <button
+              key={l.code}
+              type="button"
+              onClick={() => handleSelectLanguage(l.code)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                language === l.code
+                  ? 'bg-indigo-600 text-white keep-white'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {briefing && (
+          <div className="lg:col-span-5 p-4 sm:p-5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex flex-col justify-between space-y-3">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  {t.citizen.aiOfficialBriefingTitle}
+                </span>
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-600 text-white keep-white">
+                  {briefing.languageName}
+                </span>
+              </div>
+              <h3 className="text-sm sm:text-base font-extrabold text-white leading-snug">
+                {briefing.headline}
+              </h3>
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                {briefing.operationalSummary}
+              </p>
+            </div>
+
+            <div className="p-3 rounded-xl bg-black/20 border border-indigo-500/30 text-xs text-zinc-200">
+              <strong className="text-indigo-300 block mb-0.5">{t.dashboard.safetyAdviceBadge}:</strong>
+              {briefing.citizenSafetyAdvisory}
+            </div>
+          </div>
+        )}
+
+        <div className={`${briefing ? 'lg:col-span-7' : 'lg:col-span-12'} space-y-4`}>
+          <div className="flex flex-wrap gap-2">
+            {t.citizen.aiFaqs.map((faq) => {
+              const isSelected = selectedFaqId === faq.id && !customAiReply;
+              return (
+                <button
+                  key={faq.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedFaqId(faq.id);
+                    setCustomAiReply(null);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border text-left transition ${
+                    isSelected
+                      ? 'bg-indigo-600 border-indigo-500 text-white keep-white shadow-sm'
+                      : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white/[0.07]'
+                  }`}
+                >
+                  {faq.question}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-extrabold text-emerald-300">
+              <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                {customAiReply ? customAiQuery : activeFaqObj.question}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-zinc-200 leading-relaxed">
+              {customAiReply || activeFaqObj.answer}
+            </p>
+          </div>
+
+          <form onSubmit={handleAskCustomAiQuestion} className="flex gap-2">
+            <input
+              type="text"
+              value={customAiQuery}
+              onChange={(e) => setCustomAiQuery(e.target.value)}
+              placeholder={t.citizen.aiAskPlaceholder}
+              className="rsvp-input flex-1 text-xs"
+            />
+            <button
+              type="submit"
+              className="keep-white px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold flex items-center gap-1.5 shrink-0 shadow-sm"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{t.citizen.aiAskBtn}</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAlertsAndShelters = () => (
+    <>
+      <div className="bento-glass rounded-3xl p-5 border border-rose-500/30">
+        <h3 className="text-sm font-extrabold text-rose-300 flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-rose-400" />
+          {t.citizen.alertsTitle}
+        </h3>
+        {alerts.length === 0 ? (
+          <p className="text-xs text-zinc-400 mt-3 pt-3 border-t border-white/10">
+            No active public emergency broadcasts have been issued yet.
+          </p>
+        ) : (
+          alerts.map((alertItem) => (
+            <div key={alertItem.id} className="mt-3 pt-3 border-t border-white/10 text-xs space-y-1.5">
+              <p className="font-extrabold text-white text-sm">
+                {alertItem.title}
+              </p>
+              <p className="text-zinc-300 leading-relaxed">
+                {alertItem.message}
+              </p>
+              {alertItem.safetyGuidance && (
+                <p className="text-rose-200 font-semibold bg-rose-500/15 border border-rose-500/30 px-3 py-2 rounded-xl">
+                  {t.citizen.safetyWhatToDo} {alertItem.safetyGuidance}
+                </p>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="bento-glass rounded-3xl p-5">
+        <h3 className="text-sm font-extrabold text-white mb-3 flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-indigo-400" />
+          {t.citizen.sheltersTitle}
+        </h3>
+        {shelters.length === 0 ? (
+          <p className="text-xs text-zinc-400">
+            No evacuation shelters have been registered yet.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {shelters.map((shelter) => (
+              <div
+                key={shelter.id}
+                className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.07] text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-white text-sm">{shelter.name}</p>
+                  <span className="font-bold text-xs text-emerald-300 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/30 shrink-0">
+                    {shelter.totalCapacity - shelter.currentOccupancy} {t.citizen.spacesOpen}
+                  </span>
+                </div>
+                <p className="text-zinc-400 flex items-center gap-1 mt-1">
+                  <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                  {shelter.address}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const getCitizenTrackingStage = (status: string): {
+    step: number;
+    summary: string;
+    closedSpecial?: boolean;
+  } => {
+    switch (status) {
+      case 'Submitted':
+        return { step: 0, summary: 'Received by CriSync intake queue' };
+      case 'PendingAiReview':
+        return { step: 1, summary: 'AI urgency triage score calculated' };
+      case 'Verified':
+      case 'Prioritised':
+      case 'Escalated':
+        return { step: 2, summary: 'Verified by humanitarian case coordinator' };
+      case 'Assigned':
+      case 'InProgress':
+        return { step: 3, summary: 'Relief team & resources dispatched toward you' };
+      case 'Fulfilled':
+      case 'Closed':
+        return { step: 4, summary: 'Aid delivery completed — please leave feedback' };
+      default:
+        return { step: 1, summary: `Status: ${status}`, closedSpecial: true };
+    }
+  };
+
+  const renderTrackMyRequests = () => (
+    <div className="bento-glass rounded-3xl p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-5 pb-4 border-b border-white/[0.08]">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
