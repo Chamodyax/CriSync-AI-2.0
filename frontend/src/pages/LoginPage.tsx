@@ -781,7 +781,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="email"
                       name="email"
-                      autoComplete="off"
+                      autoComplete="username"
                       required
                       value={signInEmail}
                       onChange={(e) => setSignInEmail(e.target.value)}
@@ -798,7 +798,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="password"
                       name="password"
-                      autoComplete="off"
+                      autoComplete="current-password"
                       required
                       value={signInPassword}
                       onChange={(e) => setSignInPassword(e.target.value)}
@@ -838,7 +838,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="email"
                       name="email"
-                      autoComplete="off"
+                      autoComplete="username"
                       required
                       value={adminEmail}
                       onChange={(e) => setAdminEmail(e.target.value)}
@@ -855,7 +855,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                     <input
                       type="password"
                       name="password"
-                      autoComplete="off"
+                      autoComplete="current-password"
                       required
                       value={adminPassword}
                       onChange={(e) => setAdminPassword(e.target.value)}
@@ -1333,7 +1333,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                   <HelpCircle className="w-3.5 h-3.5" />
                   CriSync Role Governance & Access Architecture
                 </span>
-                <h2 className="text-base font-extrabold text-white mt-0.5">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight mt-0.5">
                   Self-Registration, Invited Operational Roles & Two-Tier Admins
                 </h2>
                 <p className="text-[13px] sm:text-sm leading-relaxed text-zinc-400 mt-1">
