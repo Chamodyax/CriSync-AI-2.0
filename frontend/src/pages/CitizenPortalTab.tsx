@@ -1298,7 +1298,7 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
                 return (
                   <div className="mt-3.5 p-3 rounded-2xl bg-white/[0.03] border border-white/[0.07] space-y-2">
                     <div className="flex items-center justify-between gap-2 text-[11px]">
-                      <span className="font-bold text-indigo-300">Live Relief Progress</span>
+                      <span className="font-bold text-indigo-300">Request Timeline</span>
                       <span className="text-zinc-400">{track.summary}</span>
                     </div>
                     <div className="grid grid-cols-5 gap-1.5">
@@ -1533,5 +1533,366 @@ export const CitizenPortalTab: React.FC<CitizenPortalTabProps> = ({
               </button>
             ))}
           </div>
+        </div>
+
+        {portalMode === 'tabs' && (
+          <div className="mobile-tabs-scroll flex items-center gap-1.5 bg-white/[0.03] p-1.5 rounded-2xl border border-white/10 overflow-x-auto">
+            {[
+              { id: 'all', label: t.citizen.tabAll },
+              { id: 'request', label: t.citizen.tabRequest },
+              { id: 'ai-support', label: t.citizen.tabAiSupport },
+              { id: 'track', label: `${t.citizen.tabTrack} (${myRequests.length})` },
+              { id: 'family', label: t.citizen.tabFamily },
+              { id: 'shelters', label: `${t.citizen.tabShelters} (${shelters.length})` }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveSection(tab.id as any)}
+                className={`shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                  activeSection === tab.id
+                    ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/[0.05]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {portalMode === 'guided' ? (
+        <div className="space-y-6">
+          <div className="bento-glass rounded-3xl p-5 sm:p-6 space-y-5 border border-indigo-500/30">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
+                  {wizardStep === 5 ? 'All Steps Complete' : `Guided Help Wizard • Step ${wizardStep} of 4`}
+                </span>
+                <h1 className="text-lg sm:text-xl font-black text-white tracking-tight mt-0.5">
+                  {wizardStep === 1 && 'Step 1: Confirm Family & Medical Profile'}
+                  {wizardStep === 2 && 'Step 2: Select What Help You Need'}
+                  {wizardStep === 3 && 'Step 3: Add Details, Address & Evidence Photo'}
+                  {wizardStep === 4 && 'Step 4: Review & Submit Emergency Request'}
+                  {wizardStep === 5 && 'Request Submitted • Live Tracking & Safe Shelters'}
+                </h1>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <div className="px-4 py-2 rounded-2xl bg-indigo-500/15 border border-indigo-400/35 text-right">
+                  <span className="text-lg sm:text-xl font-black font-mono text-emerald-300 leading-none block">
+                    {completionPercent}% Completed
+                  </span>
+                  <span className="text-[11px] text-zinc-400 font-semibold">
+                    {wizardStep === 5
+                      ? 'Aid request delivered'
+                      : `${100 - completionPercent}% remaining to finish`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full h-3 rounded-full bg-black/30 border border-white/10 overflow-hidden">
+              <motion.div
+                initial={false}
+                animate={{ width: `${completionPercent}%` }}
+                transition={{ duration: 0.45, ease: 'easeOut' }}
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 crisync-shimmer-bar"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+              {wizardStepsMeta.map((stepMeta) => {
+                const isDone = wizardStep > stepMeta.num || wizardStep === 5;
+                const isCurrent = wizardStep === stepMeta.num;
+                const canJump = stepMeta.num <= wizardStep || isDone;
+                return (
+                  <button
+                    key={stepMeta.num}
+                    type="button"
+                    disabled={!canJump}
+                    onClick={() => {
+                      if (!canJump) return;
+                      setStepError(null);
+                      setWizardStep(stepMeta.num);
+                    }}
+                    className={`p-3 rounded-2xl border text-left transition flex items-center gap-2.5 ${
+                      isCurrent
+                        ? 'bg-indigo-600/20 border-indigo-400 ring-2 ring-indigo-500/30'
+                        : isDone
+                        ? 'bg-emerald-500/10 border-emerald-500/35 hover:border-emerald-400/60'
+                        : 'bg-white/[0.02] border-white/10 opacity-60 cursor-not-allowed'
+                    }`}
+                  >
+                    <div
+                      className={`keep-white w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                        isDone
+                          ? 'bg-emerald-600 text-white'
+                          : isCurrent
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white/10 text-zinc-300'
+                      }`}
+                    >
+                      {isDone ? <CheckCircle2 className="w-4 h-4" /> : stepMeta.num}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold text-white truncate">{stepMeta.label}</p>
+                      <p className="text-[11px] text-zinc-400 truncate">{stepMeta.sub}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <AnimatePresence mode="wait">
+            {wizardStep !== 5 ? (
+              <motion.div
+                key={`wizard-step-${wizardStep}`}
+                initial={{ opacity: 0, x: 14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -14 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="bento-glass rounded-3xl p-5 sm:p-7 space-y-5 border border-white/15"
+              >
+                <div className="p-3.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-start gap-3">
+                  <Lightbulb className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="text-xs text-zinc-200 leading-relaxed">
+                    <strong className="text-white block mb-0.5">
+                      {wizardStep === 1 && 'Why we ask this first'}
+                      {wizardStep === 2 && 'How to choose quickly'}
+                      {wizardStep === 3 && 'Help our dispatch team find you fast'}
+                      {wizardStep === 4 && 'Almost finished! Double-check everything'}
+                    </strong>
+                    {wizardStep === 1 &&
+                      'Confirm your family size and any medical or wheelchair needs so emergency dispatchers prioritize the right supplies automatically.'}
+                    {wizardStep === 2 &&
+                      'Pick a One-Tap Quick Template if one matches your emergency — it fills the next form automatically, or select your category and urgency below.'}
+                    {wizardStep === 3 &&
+                      'Write a clear landmark or street address, add people affected, and attach a quick photo if it is safe to do so.'}
+                    {wizardStep === 4 &&
+                      'Review your details carefully below. Once you click Submit Emergency Request, responders see it immediately with AI priority scoring.'}
+                  </div>
+                </div>
+
+                {stepError && (
+                  <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-xs font-bold text-rose-200 flex items-center gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{stepError}</span>
+                  </div>
+                )}
+
+                {wizardStep === 1 && (
+                  <div className="space-y-4">
+                    {household && (
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-300">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Saved family profile loaded — review or update below, then press Next.</span>
+                      </div>
+                    )}
+                    {renderFamilyFormFields()}
+                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStepError(null);
+                          setWizardStep(2);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-300 transition"
+                      >
+                        Skip for now (Urgent)
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        disabled={savingFamily}
+                        onClick={handleStep1SaveAndNext}
+                        className="keep-white px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 shadow-md disabled:opacity-60 transition"
+                      >
+                        <span>{savingFamily ? 'Saving Family Info...' : 'Save Family & Next (25%)'}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 2 && (
+                  <div className="space-y-4">
+                    {renderHelpTypeFields()}
+                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStepError(null);
+                          setWizardStep(1);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-300 inline-flex items-center gap-1.5 transition"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Back to Step 1</span>
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={handleStep2Next}
+                        className="keep-white px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 shadow-md transition"
+                      >
+                        <span>Next: Location &amp; Details (50%)</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 3 && (
+                  <div className="space-y-4">
+                    {renderDetailsLocationFields()}
+                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStepError(null);
+                          setWizardStep(2);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-300 inline-flex items-center gap-1.5 transition"
+                      >
+                        <ArrowLeft className="w-4 h-4" />
+                        <span>Back to Step 2</span>
+                      </button>
+                      <motion.button
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={handleStep3Next}
+                        className="keep-white px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-extrabold inline-flex items-center gap-2 shadow-md transition"
+                      >
+                        <span>Next: Review &amp; Submit (90%)</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 4 && (
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-emerald-300 uppercase tracking-wider text-[11px]">
+                            1. Family Profile
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setWizardStep(1)}
+                            className="text-indigo-400 hover:underline font-bold"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        <p className="font-bold text-white text-sm">
+                          {headName.trim() || 'Not specified'} ({totalMembers} total members)
+                        </p>
+                        <p className="text-zinc-400">
+                          Children: {childrenCount} • Elderly: {elderlyCount} • Mobility Support:{' '}
+                          {hasMobility || accessibility ? 'Yes' : 'No'}
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-indigo-300 uppercase tracking-wider text-[11px]">
+                            2. Category &amp; Urgency
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setWizardStep(2)}
+                            className="text-indigo-400 hover:underline font-bold"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        <p className="font-bold text-white text-sm">
+                          {t.citizen.categories[category] || category} •{' '}
+                          <span className="text-amber-300">
+                            {t.citizen.urgencies[urgency]?.label || urgency}
+                          </span>
+                        </p>
+                        <p className="text-zinc-400 truncate">
+                          Crisis: {selectedCrisisObj?.title || 'Active Emergency'}
+                        </p>
+                      </div>
+
+                      <div className="md:col-span-2 p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-extrabold text-cyan-300 uppercase tracking-wider text-[11px]">
+                            3. Incident Details, Location &amp; Attachment
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setWizardStep(3)}
+                            className="text-indigo-400 hover:underline font-bold"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        <p className="font-extrabold text-white text-base">{title}</p>
+                        <p className="text-zinc-300 leading-relaxed">{description}</p>
+                        <div className="flex flex-wrap items-center gap-3 pt-1 text-zinc-400">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                            {address} ({latitude}, {longitude})
+                          </span>
+                          <span>• {peopleCount} people affected</span>
+                          <span>• {quantity} units needed</span>
+                          {evidenceFileName && (
+                            <span className="inline-flex items-center gap-1 text-emerald-300 font-bold">
+                              <Camera className="w-3.5 h-3.5" />
+                              Photo: {evidenceFileName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStepError(null);
+                          setWizardStep(3);
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/15 text-xs font-bold text-zinc-300 inline-flex items-center gap-1.5 transition"
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
