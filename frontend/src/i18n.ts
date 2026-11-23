@@ -855,3 +855,364 @@ export const TRANSLATIONS: Record<SupportedLanguage, LanguageBundle> = {
       alertsTitle: 'Alertas Oficiales de Inundación y Consejos de Seguridad',
       safetyWhatToDo: 'Qué hacer:',
       alertHeadline: 'Alerta Máxima de Inundación en la Cuenca de Kalu Ganga — Ratnapura y Kalutara',
+      alertBody: 'Las fuertes lluvias monzónicas han elevado el nivel del agua en zonas bajas y cortado accesos viales.',
+      alertGuidance: 'Diríjase de inmediato a los refugios verificados en tierras altas. Lleve medicamentos esenciales y agua potable.',
+      sheltersTitle: 'Refugios de Evacuación Abiertos Cerca de Usted',
+      spacesOpen: 'plazas libres',
+      trackerBadge: 'Seguimiento de Ayuda en Vivo',
+      trackerTitle: 'Mis Solicitudes Enviadas y Calificación de Entrega',
+      rateDeliveryBtn: 'Calificar Entrega',
+      feedbackTitle: 'Confirmar Recepción de Ayuda y Calificar',
+      ratingLabel: 'Su Calificación (1 a 5 Estrellas)',
+      commentsLabel: 'Comentarios para el Equipo de Socorro',
+      submitFeedbackBtn: 'Enviar Calificación',
+      aiAssistantBadge: 'Coursework 1.1.A • Asistencia Automatizada Multilingüe IA',
+      aiAssistantTitle: 'Centro de Soporte Humanitario IA y Comunicación en Español',
+      aiAssistantSubtitle: 'Reciba instrucciones de seguridad, ubicación de refugios y guía de emergencia en su idioma.',
+      aiAskPlaceholder: 'Haga una pregunta (ej.: ¿Dónde hay un refugio con rampa? ¿Cómo pido insulina?)...',
+      aiAskBtn: 'Consultar a la IA',
+      aiOfficialBriefingTitle: 'Transmisión Oficial Multilingüe de Crisis',
+      categories: {
+        Medicine: 'Medicina y Primeros Auxilios',
+        Food: 'Alimentos y Raciones Secas',
+        WaterAndSanitation: 'Agua Potable Limpia',
+        TemporaryShelter: 'Refugio Seguro',
+        SearchAndRescue: 'Rescate en Bote / Evacuación',
+        AccessibilityAssistance: 'Silla de Ruedas / Accesibilidad',
+        Transportation: 'Transporte de Emergencia'
+      },
+      urgencies: {
+        Low: { label: 'Baja', desc: 'Puede esperar 24h+' },
+        Medium: { label: 'Media', desc: 'Necesario hoy' },
+        High: { label: 'Alta', desc: 'Urgente' },
+        Critical: { label: 'Crítica', desc: 'Muy urgente' },
+        LifeThreatening: { label: 'Peligro de Vida', desc: 'Peligro inmediato' }
+      },
+      templates: [
+        {
+          label: '💊 Insulina / Medicina Urgente',
+          category: 'Medicine',
+          urgency: 'LifeThreatening',
+          title: 'Se necesita insulina refrigerada y suministros médicos urgentes',
+          description: 'Las inundaciones bloquearon el acceso vial. Un familiar diabético de edad avanzada necesita insulina con urgencia.',
+          people: 6,
+          qty: 10,
+          wheelchair: true
+        },
+        {
+          label: '🍲 Alimentos y Agua Familiar',
+          category: 'Food',
+          urgency: 'High',
+          title: 'Raciones secas y agua potable para familia aislada',
+          description: 'La planta baja está inundada. Necesitamos paquetes de alimentos secos y agua potable para niños y adultos.',
+          people: 5,
+          qty: 15,
+          wheelchair: false
+        },
+        {
+          label: '🚣 Rescate en Bote / Evacuación',
+          category: 'SearchAndRescue',
+          urgency: 'LifeThreatening',
+          title: 'Evacuación inmediata en bote por subida rápida del agua',
+          description: 'El nivel del agua sube rápidamente. La familia espera en el piso superior y necesita transporte seguro a tierras altas.',
+          people: 4,
+          qty: 1,
+          wheelchair: true
+        },
+        {
+          label: '♿ Refugio para Silla de Ruedas',
+          category: 'TemporaryShelter',
+          urgency: 'Critical',
+          title: 'Espacio en refugio accesible para silla de ruedas',
+          description: 'Evacuando zona inundada con un familiar mayor en silla de ruedas. Necesitamos refugio accesible con asistencia médica.',
+          people: 6,
+          qty: 6,
+          wheelchair: true
+        }
+      ],
+      aiFaqs: [
+        {
+          id: 'shelter',
+          question: '¿Dónde está el refugio accesible en silla de ruedas más cercano?',
+          answer: 'El Complejo de Refugio Alto de Ratnapura Central y el Refugio Maha Vidyalaya de Kalutara están abiertos ahora con rampas para sillas de ruedas, unidad médica y agua potable.'
+        },
+        {
+          id: 'medicine',
+          question: '¿Cómo solicito insulina urgente o medicamentos refrigerados?',
+          answer: 'Seleccione "Medicina y Primeros Auxilios" y urgencia "Peligro de Vida". Nuestro motor IA prioriza automáticamente medicamentos de cadena de frío desde el Depósito Médico de Ratnapura.'
+        },
+        {
+          id: 'rescue',
+          question: 'El agua está subiendo en nuestra casa. ¿Qué debemos hacer?',
+          answer: 'Suba de inmediato al piso más alto, desconecte la electricidad principal y envíe una solicitud de "Rescate en Bote" indicando su localidad.'
+        },
+        {
+          id: 'triage',
+          question: '¿Quién revisa mi solicitud de emergencia?',
+          answer: 'La IA calcula un puntaje inicial (0–100) según la urgencia y vulnerabilidad, y un Coordinador humano autorizado verifica y despacha la ayuda.'
+        }
+      ]
+    },
+    smsNotification: {
+      title: 'Generador Multilingüe de Alertas SMS y Prueba Anti-Duplicados',
+      subtitle: 'Seleccione un idioma para generar un SMS de emergencia. Enviar dos veces con el mismo ID bloquea textos duplicados.',
+      languageSelectLabel: 'Idioma de la Notificación',
+      subject: 'Aviso de Evacuación de Emergencia',
+      body: 'Diríjase de inmediato al Complejo de Refugio Alto de Ratnapura Central. Ayuda médica y alimentaria disponible.',
+      sendBtn: 'Enviar SMS de Prueba en Español'
+    }
+  },
+
+  fr: {
+    dir: 'ltr',
+    appSubtitle: "Système de Coordination d'Aide Humanitaire et d'Urgence",
+    activeCrisisBadge: 'Réponse aux Inondations Kalu Ganga',
+    switchRole: 'Changer de Rôle',
+    signOut: 'Déconnexion',
+    lightMode: 'Clair',
+    darkMode: 'Sombre',
+    yourRoleLabel: 'Votre Rôle',
+    currentTabLabel: 'Onglet Actuel',
+    languageLabel: 'Langue',
+    nav: {
+      dashboard: 'Vue Globale et Cas',
+      citizen: "Demander de l'Aide",
+      aiGovernance: 'Priorité IA et Prévisions',
+      logistics: 'Stocks et Expédition',
+      shelters: "Centres d'Hébergement",
+      volunteers: 'Bénévoles et Équipes',
+      donations: 'Campagnes de Dons',
+      mapResilience: 'Carte Live et Résilience'
+    },
+    dashboard: {
+      briefingBadge: 'Bulletin Officiel Multilingue de Crise',
+      briefingHeading: 'Bulletin de Crise',
+      safetyAdviceBadge: 'Consignes de Sécurité',
+      openRequests: 'Demandes Ouvertes',
+      criticalUrgency: 'Urgence Critique',
+      avgResponseTime: 'Temps de Réponse Moy.',
+      underGoal: '✓ Sous la cible de 30 min',
+      suppliesDispatched: 'Secours Expédiés',
+      shelterCapacity: "Capacité d'Accueil",
+      spacesFilled: 'places occupées',
+      staffAiReviews: 'Révisions Humaines IA',
+      aiScoresReviewed: 'scores IA vérifiés',
+      duplicatesCaught: 'Doublons Détectés',
+      duplicateSmsBlocked: 'SMS en double bloqués',
+      queueBadge: "File d'Attente des Demandes Citoyennes",
+      queueTitleManage: "Vérifier, Prioriser et Coordonner les Demandes d'Aide",
+      queueTitleView: "Demandes d'Assistance Communautaire Actives",
+      queueSub: "Chaque carte affiche le Score de Priorité IA (sur 100) et des boutons rapides pour vérifier, escalader ou fusionner les doublons.",
+      searchPlaceholder: 'Rechercher par code, ville ou besoin...',
+      filterAll: 'Tous',
+      filterCritical: 'Critiques',
+      filterDuplicates: 'Doublons',
+      filterVerified: 'Vérifiés',
+      verifyBtn: 'Vérifier',
+      escalateBtn: 'Escalader',
+      closeBtn: 'Clôturer',
+      rejectBtn: 'Rejeter',
+      mergeBtn: 'Fusionner Doublon',
+      reviewAiBtn: 'Réviser Score IA',
+      peopleAffected: 'personnes touchées',
+      unitsNeeded: 'unités requises',
+      possibleDuplicate: 'Doublon Potentiel Détecté'
+    },
+    citizen: {
+      portalTitle: "Portail Citoyen d'Aide d'Urgence et d'Assistance IA Multilingue",
+      portalSubtitle: "Soumettez vos demandes d'aide en français, recevez des conseils de sécurité automatisés par l'IA et suivez vos livraisons.",
+      tabAll: 'Tous les Outils',
+      tabRequest: "1. Demander de l'Aide",
+      tabAiSupport: '2. Assistance IA en Français',
+      tabTrack: '3. Mes Demandes',
+      tabFamily: '4. Profil Familial',
+      tabShelters: '5. Abris et Alertes',
+      formBadge: "Demande d'Urgence (Français)",
+      formTitle: 'Demander une Aide Humanitaire Immédiate',
+      quickTemplatePrompt: 'Pressé(e) ? Cliquez sur un modèle rapide pour remplir le formulaire en français :',
+      step1Category: "1. De quel type d'aide avez-vous besoin ?",
+      step2Urgency: '2. Quel est le degré d’urgence ?',
+      step3Summary: '3. Résumé court de votre besoin *',
+      step3Placeholder: 'Ex. : Besoin d’insuline et de rations alimentaires pour 6 personnes',
+      step4Description: "4. Décrivez votre situation (Niveau d'eau, besoins médicaux) *",
+      step4Placeholder: 'Précisez les besoins médicaux, enfants/personnes âgées ou routes coupées...',
+      step5Location: '5. Votre Localisation (Choisissez une ville ou tapez votre adresse)',
+      locationPlaceholder: 'Votre adresse, village ou point de repère proche',
+      peopleCountLabel: 'Personnes Touchées',
+      quantityLabel: 'Quantité Requise',
+      photoLabel: 'Photo / Note Médicale (Optionnel)',
+      wheelchairCheckbox: "Un membre de ma famille a besoin d'une évacuation accessible en fauteuil roulant",
+      submitRequestBtn: "Envoyer la Demande d'Urgence",
+      familyBadge: 'Dossier Familial Enregistré',
+      familyTitle: 'Ma Famille et Profil Médical',
+      headNameLabel: 'Nom du Chef de Foyer',
+      totalMembersLabel: 'Membres au Total',
+      childrenLabel: 'Enfants',
+      elderlyLabel: 'Personnes Âgées (65+)',
+      medicalNotesLabel: 'Besoins Médicaux ou Alimentaires',
+      mobilityCheckbox: 'Fauteuil Roulant / Aide à la Mobilité Requise',
+      chronicCheckbox: 'Maladie Chronique (Insuline, Oxygène, Dialyse)',
+      saveFamilyBtn: 'Enregistrer le Profil Familial',
+      alertsTitle: "Alertes Officielles d'Inondation et Consignes de Sécurité",
+      safetyWhatToDo: 'Que faire :',
+      alertHeadline: 'Alerte Inondation Majeure Bassin de Kalu Ganga — Ratnapura et Kalutara',
+      alertBody: "Les fortes pluies de mousson ont provoqué la montée des eaux et coupé plusieurs routes basses.",
+      alertGuidance: "Rejoignez immédiatement les centres d'hébergement vérifiés en hauteur avec vos médicaments essentiels.",
+      sheltersTitle: "Centres d'Hébergement Ouverts à Proximité",
+      spacesOpen: 'places disponibles',
+      trackerBadge: 'Suivi des Secours en Direct',
+      trackerTitle: 'Mes Demandes Soumises et Évaluation des Livraisons',
+      rateDeliveryBtn: 'Évaluer la Livraison',
+      feedbackTitle: "Confirmer la Réception de l'Aide et Noter",
+      ratingLabel: 'Votre Note (1 à 5 Étoiles)',
+      commentsLabel: "Commentaires pour l'Équipe de Secours",
+      submitFeedbackBtn: "Envoyer l'Évaluation",
+      aiAssistantBadge: 'Coursework 1.1.A • Assistance Automatisée Multilingue IA',
+      aiAssistantTitle: 'Centre de Support Humanitaire IA et Communication en Français',
+      aiAssistantSubtitle: "Recevez des consignes de sécurité, l'emplacement des abris et une assistance d'urgence dans votre langue.",
+      aiAskPlaceholder: 'Posez une question (ex. : Où se trouve un abri accessible ? Comment obtenir de l’insuline ?)...',
+      aiAskBtn: "Demander à l'IA",
+      aiOfficialBriefingTitle: 'Diffusion Officielle Multilingue de Crise',
+      categories: {
+        Medicine: 'Médicaments et Premiers Secours',
+        Food: 'Nourriture et Rations Sèches',
+        WaterAndSanitation: 'Eau Potable Propre',
+        TemporaryShelter: "Abri d'Urgence",
+        SearchAndRescue: 'Sauvetage en Bateau / Évacuation',
+        AccessibilityAssistance: 'Fauteuil Roulant / Accessibilité',
+        Transportation: "Transport d'Urgence"
+      },
+      urgencies: {
+        Low: { label: 'Faible', desc: 'Peut attendre 24h+' },
+        Medium: { label: 'Moyenne', desc: "Requis aujourd'hui" },
+        High: { label: 'Élevée', desc: 'Besoin urgent' },
+        Critical: { label: 'Critique', desc: 'Très urgent' },
+        LifeThreatening: { label: 'Danger de Mort', desc: 'Danger immédiat' }
+      },
+      templates: [
+        {
+          label: '💊 Insuline / Médicaments Urgents',
+          category: 'Medicine',
+          urgency: 'LifeThreatening',
+          title: 'Besoin urgent d’insuline réfrigérée et de fournitures médicales',
+          description: "Les inondations ont coupé l'accès routier. Un parent âgé diabétique a un besoin vital d'insuline.",
+          people: 6,
+          qty: 10,
+          wheelchair: true
+        },
+        {
+          label: '🍲 Nourriture et Eau Potable',
+          category: 'Food',
+          urgency: 'High',
+          title: 'Rations alimentaires et eau potable pour famille isolée',
+          description: "Le rez-de-chaussée est inondé. Besoin de colis alimentaires secs et d'eau potable pour enfants et adultes.",
+          people: 5,
+          qty: 15,
+          wheelchair: false
+        },
+        {
+          label: '🚣 Sauvetage en Bateau',
+          category: 'SearchAndRescue',
+          urgency: 'LifeThreatening',
+          title: 'Évacuation immédiate en bateau suite à la montée des eaux',
+          description: "Le niveau de l'eau monte rapidement. La famille attend à l'étage supérieur et a besoin d'une évacuation sûre.",
+          people: 4,
+          qty: 1,
+          wheelchair: true
+        },
+        {
+          label: '♿ Abri Fauteuil Roulant',
+          category: 'TemporaryShelter',
+          urgency: 'Critical',
+          title: 'Place en centre d’hébergement accessible en fauteuil roulant',
+          description: 'Évacuation avec un proche âgé en fauteuil roulant. Besoin d’un abri accessible au rez-de-chaussée.',
+          people: 6,
+          qty: 6,
+          wheelchair: true
+        }
+      ],
+      aiFaqs: [
+        {
+          id: 'shelter',
+          question: 'Où se trouve le centre d’hébergement accessible en fauteuil roulant le plus proche ?',
+          answer: 'Le Complexe de Secours de Ratnapura Central et le Centre Maha Vidyalaya de Kalutara sont ouverts avec rampes d’accès, unité médicale et eau potable.'
+        },
+        {
+          id: 'medicine',
+          question: 'Comment obtenir de l’insuline urgente ou des médicaments réfrigérés ?',
+          answer: 'Sélectionnez « Médicaments et Premiers Secours » et l’urgence « Danger de Mort ». Notre moteur IA priorise immédiatement l’expédition depuis le Dépôt Médical Frigorifique de Ratnapura.'
+        },
+        {
+          id: 'rescue',
+          question: 'L’eau monte autour de notre maison. Que devons-nous faire ?',
+          answer: 'Montez immédiatement à l’étage supérieur, coupez le courant électrique principal et envoyez une demande « Sauvetage en Bateau » avec votre localisation.'
+        },
+        {
+          id: 'triage',
+          question: 'Qui examine ma demande d’aide d’urgence ?',
+          answer: 'L’IA calcule un score de priorité initial (0–100) et un coordinateur humain autorisé vérifie et valide chaque expédition de secours.'
+        }
+      ]
+    },
+    smsNotification: {
+      title: 'Générateur Multilingue de SMS et Test Anti-Doublons',
+      subtitle: "Choisissez une langue pour générer un SMS d'urgence. L'envoi répété avec le même ID bloque les doublons.",
+      languageSelectLabel: 'Langue de la Notification',
+      subject: "Avis d'Évacuation d'Urgence",
+      body: 'Veuillez rejoindre immédiatement le Complexe de Secours de Ratnapura Central. Aide médicale et vivres disponibles.',
+      sendBtn: 'Envoyer un SMS de Test en Français'
+    }
+  },
+
+  ar: {
+    dir: 'rtl',
+    appSubtitle: 'نظام تنسيق المساعدات الإنسانية والاستجابة للطوارئ',
+    activeCrisisBadge: 'استجابة فيضانات كالو غانغا',
+    switchRole: 'تبديل الدور',
+    signOut: 'تسجيل الخروج',
+    lightMode: 'الوضع النهاري',
+    darkMode: 'الوضع الداكن',
+    yourRoleLabel: 'دورك الحالي',
+    currentTabLabel: 'القسم الحالي',
+    languageLabel: 'اللغة',
+    nav: {
+      dashboard: 'نظرة عامة والحالات',
+      citizen: 'طلب مساعدة ومتابعة حالتي',
+      aiGovernance: 'أولويات الذكاء الاصطناعي والتوقعات',
+      logistics: 'الإمدادات والتوزيع',
+      shelters: 'مراكز الإيواء الآمنة',
+      volunteers: 'المتطوعون والفرق الميدانية',
+      donations: 'حملات الإغاثة والتبرعات',
+      mapResilience: 'الخريطة الحية ومرونة النظام'
+    },
+    dashboard: {
+      briefingBadge: 'الموجز الرسمي متعدد اللغات للأزمة',
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
