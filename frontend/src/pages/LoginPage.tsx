@@ -398,34 +398,373 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       availabilitySchedule: regAvailability,
       baseTown: regBaseTown,
       organisationName: regRole === 'PartnerOfficer' ? regOrgName : undefined,
+      organisationType: regRole === 'PartnerOfficer' ? regOrgType : undefined,
+      country: regRole === 'PartnerOfficer' ? regOrgCountry : undefined,
+      partnershipProposal: regRole === 'PartnerOfficer' ? regPartnershipProposal : undefined
+    });
+    setSubmitting(false);
+  };
+
+  const resetCredentialInputs = () => {
+    setSignInEmail('');
+    setSignInPassword('');
+    setAdminEmail('');
+    setAdminPassword('');
+    setRegEmail('');
+    setRegPassword('');
+    setUnlockedInputs({});
+  };
+
+  const startRegistrationForRole = (roleValue: string) => {
+    if (roleValue === 'SystemAdmin' || roleValue === 'OrganizationAdmin') {
+      startAdminLogin();
+      return;
+    }
+    resetCredentialInputs();
+    setRegRole(roleValue);
+    setAuthMode('signup');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const startCreateAccountMode = () => {
+    resetCredentialInputs();
+    setAuthMode('signup');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const startSignInMode = () => {
+    resetCredentialInputs();
+    setAuthMode('signin');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const startAdminLogin = () => {
+    resetCredentialInputs();
+    setAuthMode('admin');
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <div className="min-h-[100dvh] bg-[#07090e] text-zinc-100 flex flex-col justify-between relative overflow-x-hidden">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(rgba(148,163,184,0.12)_1px,transparent_1px)] [background-size:24px_24px] opacity-40" />
+      <GlobalEarthBackdrop theme={theme} variant="login" />
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <motion.div
+          animate={{ scale: [1, 1.18, 1], opacity: theme === 'light' ? [0.42, 0.62, 0.42] : [0.22, 0.38, 0.22], x: [0, 35, 0], y: [0, -25, 0] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+          className={`absolute -top-32 -left-24 w-[480px] h-[480px] rounded-full blur-3xl ${
+            theme === 'light' ? 'bg-indigo-400/35' : 'bg-indigo-600/20'
+          }`}
+        />
+        <motion.div
+          animate={{ scale: [1.1, 0.92, 1.1], opacity: theme === 'light' ? [0.38, 0.58, 0.38] : [0.18, 0.34, 0.18], x: [0, -40, 0], y: [0, 30, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+          className={`absolute bottom-[-140px] right-[-100px] w-[540px] h-[540px] rounded-full blur-3xl ${
+            theme === 'light' ? 'bg-cyan-400/35' : 'bg-cyan-500/15'
+          }`}
+        />
+        <motion.div
+          animate={{ scale: [0.95, 1.15, 0.95], opacity: theme === 'light' ? [0.32, 0.5, 0.32] : [0.1, 0.18, 0.1] }}
+          transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
+          className={`absolute bottom-16 -left-20 w-[400px] h-[400px] rounded-full blur-3xl ${
+            theme === 'light' ? 'bg-rose-300/30' : 'bg-rose-500/10'
+          }`}
+        />
+        <motion.div
+          animate={{ scale: [0.8, 1.45], opacity: [0.28, 0] }}
+          transition={{ duration: 4.5, repeat: Infinity, ease: 'easeOut' }}
+          className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[540px] h-[540px] rounded-full border border-indigo-400/20"
+        />
+        <motion.div
+          animate={{ scale: [0.8, 1.45], opacity: [0.22, 0] }}
+          transition={{ duration: 4.5, delay: 2.2, repeat: Infinity, ease: 'easeOut' }}
+          className="hidden lg:block absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[540px] h-[540px] rounded-full border border-cyan-400/15"
+        />
+      </div>
+
+      <header className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-8 pt-4 sm:pt-6 pb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+          <img
+            src="/crisync-logo.png"
+            alt="CriSync Logo"
+            onClick={onReplayIntro}
+            title="Replay Crisis + Sync → CriSync Intro Animation"
+            className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover crisync-logo-frame shrink-0 cursor-pointer"
+          />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="crisync-wordmark text-2xl sm:text-3xl lg:text-[34px]">
+                <span className="crisync-wordmark-primary">Cri</span>
+                <span className="crisync-wordmark-accent">Sync</span>
+              </span>
+              <button
+                type="button"
+                onClick={onReplayIntro}
+                title="Replay Crisis + Sync → CriSync Formation Animation"
+                className="text-[11px] sm:text-xs whitespace-nowrap font-bold tracking-wider px-2.5 py-1 rounded-full bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/30 transition inline-flex items-center gap-1"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>Crisis + Sync • &ldquo;Cry-Sync&rdquo;</span>
+              </button>
+            </div>
+            <p className="text-[13px] sm:text-[15px] text-zinc-400 truncate mt-1">
+              Humanitarian Aid & Emergency Coordination System
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="w-10 h-10 sm:w-auto sm:px-3.5 sm:py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/15 text-[13px] whitespace-nowrap font-bold text-zinc-200 flex items-center justify-center gap-2 transition shadow-sm"
+            title="Switch between Light Mode and Dark Mode"
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="hidden sm:inline">Light Mode</span>
+              </>
+            ) : (
+              <>
+                <Moon className="w-4 h-4 text-indigo-400" />
+                <span className="hidden sm:inline">Dark Mode</span>
+              </>
+            )}
+          </button>
+
+          <span className="hidden md:inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-[13px] whitespace-nowrap font-bold text-indigo-300">
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${activeCrisisTitle ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${activeCrisisTitle ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+            </span>
+            {activeCrisisTitle ? `Active Crisis: ${activeCrisisTitle}` : 'Live Production Mode • Ready'}
+          </span>
+        </div>
+      </header>
+
+      <div className="relative z-10 w-full border-y border-white/[0.06] bg-white/[0.02] backdrop-blur-md overflow-hidden py-2">
+        <div className="crisync-ticker-track items-center gap-8 text-xs sm:text-[13px] font-bold">
+          {[
+            { dot: 'bg-rose-400', label: activeCrisisTitle ? `Active Response: ${activeCrisisTitle}` : 'Global Emergency Readiness Active' },
+            { dot: 'bg-cyan-400', label: '3D Global Aid Network: UN Geneva • Singapore • Nairobi • Colombo Synced' },
+            { dot: 'bg-emerald-400', label: 'Evacuation Shelters Open • Wheelchair & Medical Support Available' },
+            { dot: 'bg-indigo-400', label: '6-Language Citizen Help Portal: EN • SI • TA • AR • FR • ES' },
+            { dot: 'bg-amber-400', label: 'Cold-Chain Medical Stock & Relief Dispatch Ready' },
+            { dot: 'bg-rose-400', label: activeCrisisTitle ? `Active Response: ${activeCrisisTitle}` : 'Global Emergency Readiness Active' },
+            { dot: 'bg-cyan-400', label: '3D Global Aid Network: UN Geneva • Singapore • Nairobi • Colombo Synced' },
+            { dot: 'bg-emerald-400', label: 'Evacuation Shelters Open • Wheelchair & Medical Support Available' },
+            { dot: 'bg-indigo-400', label: '6-Language Citizen Help Portal: EN • SI • TA • AR • FR • ES' },
+            { dot: 'bg-amber-400', label: 'Cold-Chain Medical Stock & Relief Dispatch Ready' }
+          ].map((item, idx) => (
+            <span key={idx} className="inline-flex items-center gap-2 text-zinc-300 shrink-0 px-3">
+              <span className={`w-1.5 h-1.5 rounded-full ${item.dot} shrink-0`} />
+              <span>{item.label}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <main className="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-8 py-4 sm:py-6 flex-1 flex items-center">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start">
+          <div className="lg:hidden bento-glass rounded-3xl p-4 space-y-2.5 border border-indigo-500/25">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                  Real Multi-User Platform
+                </p>
+                <p className="text-[15px] font-extrabold text-white">
+                  Sign In or Register Your Role
+                </p>
+              </div>
+              <span className="text-[11px] whitespace-nowrap font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-full shrink-0">
+                {ALL_PLATFORM_ROLES.length} Official Roles
+              </span>
+            </div>
+            <p className="text-[13px] text-zinc-400 leading-relaxed">
+              Sign in to an official role account, use <strong className="text-zinc-200">Create Account</strong> for citizens and teams, or open <strong className="text-zinc-200">Admin Login</strong> for System Administration.
+            </p>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="lg:col-span-5 space-y-5"
+          >
+            {trustedUnlock && (
+              <div className="bento-glass rounded-3xl p-5 sm:p-6 border border-indigo-500/35 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="keep-white w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 flex items-center justify-center text-white shadow-md shrink-0">
+                      <Fingerprint className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block truncate">
+                        {trustedUnlock.deviceName ? `Quick Unlock • ${trustedUnlock.deviceName}` : 'Trusted-Device Quick Unlock'}
+                      </span>
+                      <h3 className="text-base sm:text-lg font-extrabold text-white truncate">
+                        {trustedUnlock.fullName}
+                      </h3>
+                      <p className="text-xs text-zinc-400 truncate">
+                        {trustedUnlock.role} • {trustedUnlock.email}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleForgetTrustedDevice}
+                    title="Remove Quick Unlock from this browser"
+                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-rose-500/15 border border-white/10 hover:border-rose-500/30 text-xs font-bold text-zinc-300 hover:text-rose-300 inline-flex items-center gap-1 transition shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Forget</span>
+                  </button>
+                </div>
+
+                {quickUnlockError && (
+                  <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-xs sm:text-[13px] text-rose-200 font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{quickUnlockError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleQuickSecretUnlock} className="space-y-3">
+                  {trustedUnlock.mode === 'Pattern' ? (
+                    <PatternLockPad
+                      value={quickPatternInput}
+                      onChange={setQuickPatternInput}
+                      disabled={quickUnlockBusy}
+                      label="Draw your Pattern (drag or tap 4+ dots)"
+                    />
+                  ) : (
+                    <div>
+                      <label className="block text-[13px] font-bold text-zinc-300 mb-1.5">
+                        Enter 6-Digit PIN
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoComplete="off"
+                        value={quickPinInput}
+                        onChange={(e) => setQuickPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="••••••"
+                        className="rsvp-input text-center tracking-[0.45em] font-mono text-lg"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2.5">
+                    <button
+                      type="submit"
+                      disabled={quickUnlockBusy}
+                      className="keep-white flex-1 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md transition"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span>{quickUnlockBusy ? 'Verifying...' : `Unlock with ${trustedUnlock.mode}`}</span>
+                    </button>
+
+                    {trustedUnlock.hasBiometricCredential && biometricAvailable && (
+                      <button
+                        type="button"
+                        disabled={quickUnlockBusy}
+                        onClick={() => void handleQuickBiometricUnlock()}
+                        className="keep-white flex-1 py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-md transition"
+                      >
+                        <Fingerprint className="w-4 h-4" />
+                        <span>Fingerprint / Hello</span>
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="bento-glass rounded-3xl p-5 sm:p-7">
+              <div className="flex items-center gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] mb-5">
+                <button
+                  type="button"
+                  onClick={startSignInMode}
+                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                    authMode === 'signin'
+                      ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  <Lock className="hidden sm:block w-3.5 h-3.5 shrink-0" />
+                  <span>Sign In</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startCreateAccountMode}
+                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                    authMode === 'signup'
+                      ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  <UserPlus className="hidden sm:block w-3.5 h-3.5 shrink-0" />
+                  <span>Create Account</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={startAdminLogin}
+                  className={`flex-1 py-2 px-1.5 rounded-xl text-[11px] sm:text-xs xl:text-[13px] whitespace-nowrap font-extrabold flex items-center justify-center gap-1.5 transition ${
+                    authMode === 'admin'
+                      ? 'bg-violet-600 text-white keep-white shadow-sm'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  <ShieldAlert className="hidden sm:block w-3.5 h-3.5 shrink-0" />
+                  <span>Admin Login</span>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
+                  {authMode === 'signin' ? (
+                    <>
+                      <Lock className="w-4 h-4 text-indigo-400" />
+                      <span>Sign In to Your Account</span>
+                    </>
+                  ) : authMode === 'admin' ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-violet-400" />
+                      <span>System Administrator Portal</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4 text-indigo-400" />
+                      <span>Create New CriSync Account</span>
+                    </>
+                  )}
+                </h2>
+              </div>
+              <p className="text-[13px] sm:text-sm leading-relaxed text-zinc-400 mb-5">
+                {authMode === 'signin'
+                  ? 'Enter your registered email and personal password below. Multiple team members and citizens can create individual accounts via Create Account.'
+                  : authMode === 'admin'
+                    ? 'Restricted administrator sign-in. Only authorised System Administrator accounts may enter here. Logged-in administrators can create additional Admin accounts from the Control Center.'
+                    : 'Register a private password-protected account for any operational or citizen role, save your household or agency affiliation, and begin working.'}
+              </p>
+
+              <AnimatePresence mode="wait">
+                {errorMessage && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-[13px] sm:text-sm text-rose-200 font-semibold flex items-center gap-2.5"
+                  >
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
