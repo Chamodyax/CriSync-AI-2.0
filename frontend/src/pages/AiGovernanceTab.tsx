@@ -297,7 +297,7 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3.5 min-w-0">
-                      <span>{confidencePct}%</span>
+                      <RadialConfidenceGauge percentage={confidencePct} size={62} />
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-200">
                           <Cpu className="w-3.5 h-3.5 text-indigo-400" />
@@ -359,34 +359,108 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
                     <p className="text-[11px] font-bold text-zinc-400 mb-2">
                       How the AI calculated this priority score:
                     </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {Object.entries(factors).map(([factorName, factorValue]) => {
+                        const barPct = Math.min(100, Math.max(15, Number(factorValue) * 3));
+                        return (
+                          <div
+                            key={factorName}
+                            className="bg-black/25 p-3 rounded-2xl border border-white/[0.07]"
+                          >
+                            <p className="text-[11px] font-semibold text-zinc-300 leading-tight">
+                              {getFriendlyFactorLabel(factorName)}
+                            </p>
+                            <p className="text-sm font-mono font-extrabold text-white mt-1">
+                              +{factorValue} <span className="text-[10px] text-zinc-400">points</span>
+                            </p>
+                            <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden mt-2">
+                              <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${barPct}%` }}
+                                transition={{ duration: 0.6, ease: 'easeOut' }}
+                                className="h-full bg-gradient-to-r from-indigo-500 to-purple-400 rounded-full crisync-shimmer-bar"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {rec.humanDecision && (
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-1">
+                      <p className="font-extrabold text-emerald-300 flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-emerald-400" />
+                        Reviewed by Staff: {rec.humanDecision.actionTaken} by {rec.humanDecision.responsibleUserName} ({rec.humanDecision.responsibleUserRole})
+                      </p>
+                      <p className="text-zinc-300 flex flex-wrap items-center gap-1.5 text-xs">
+                        <span>AI Suggested: {rec.humanDecision.originalAiRecommendationSummary}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-emerald-400" />
+                        <strong className="text-emerald-300">
+                          Final Staff Decision: {rec.humanDecision.finalHumanDecisionSummary}
+                        </strong>
+                      </p>
+                      <p className="text-zinc-400">
+                        Staff Note: {rec.humanDecision.overrideJustification}
+                      </p>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div ref={reviewFormRef} className="scroll-mt-24 lg:col-span-5 bento-glass rounded-3xl p-5 sm:p-6 h-fit lg:sticky lg:top-28 border border-indigo-500/30">
+          <div className="flex items-center gap-3 mb-4 pb-3.5 border-b border-white/[0.08]">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Staff Final Decision
+              </span>
+              <h3 className="text-base sm:text-lg font-extrabold text-white">
+                Approve or Change AI Priority
+              </h3>
+            </div>
+          </div>
+
+          {selectedRecommendation ? (
+            <form onSubmit={handleReviewSubmit} className="space-y-4 text-xs">
+              <div className="p-4 rounded-2xl bg-black/25 border border-white/10 space-y-1.5">
+                <span className="text-[11px] font-bold text-zinc-400 block">
+                  Currently Reviewing Recommendation:
+                </span>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  {selectedRecommendation.rationale}
+                </p>
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-indigo-200 font-bold">
+                    Category: {selectedRecommendation.recommendedCategory}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-rose-500/20 border border-rose-500/30 text-rose-200 font-bold">
+                    AI Urgency: {selectedRecommendation.recommendedUrgency}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-300 mb-2">
+                  1. Your Decision
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {decisionOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setAction(opt.value)}
+                      className={`py-2.5 px-3 rounded-xl font-bold border text-xs transition ${
+                        action === opt.value
+                          ? `${opt.style} ring-2 ring-indigo-500/40`
+                          : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
