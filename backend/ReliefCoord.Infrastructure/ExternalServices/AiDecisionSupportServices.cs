@@ -338,38 +338,99 @@ public class PrimaryEnsembleAiService : IAiDecisionSupportService
             .ToHashSet();
 
         if (!tokensA.Any() || !tokensB.Any())
+        {
+            return 0.0;
+        }
+
+        int intersection = tokensA.Intersect(tokensB).Count();
+        int union = tokensA.Union(tokensB).Count();
+        return union == 0 ? 0.0 : (double)intersection / union;
     }
 }
 
-internal static class LegacyCrisisDraftMapper
+public class FallbackHeuristicAiService : IAiDecisionSupportService
 {
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    private readonly PrimaryEnsembleAiService _innerRuleEngine;
 
-    internal static string BuildCompositeKey(string district, string category, string title)
+    public FallbackHeuristicAiService(IMappingProviderService mappingService)
     {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        _innerRuleEngine = new PrimaryEnsembleAiService(mappingService);
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    public string ProviderName => "ResilientLocalHeuristicFallback-v1.0";
+
+    public async Task<AiRequestEvaluationResult> EvaluateAssistanceRequestAsync(
+        AssistanceRequest request,
+        IReadOnlyList<AssistanceRequest> existingOpenRequests,
+        CancellationToken cancellationToken = default)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        var baseEval = await _innerRuleEngine.EvaluateAssistanceRequestAsync(request, existingOpenRequests, cancellationToken);
+        return baseEval with
+        {
+            ConfidenceScore = 0.74,
+            Rationale = $"[FALLBACK MODE ACTIVE - External AI Service Unreachable] Deterministic rule evaluation completed. {baseEval.Rationale}",
+            ProviderUsed = ProviderName
+        };
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    public Task<IReadOnlyList<AiResourceCandidateDto>> RecommendResourcesForRequestAsync(
+        AssistanceRequest request,
+        IReadOnlyList<ResourceItem> availableResources,
+        CancellationToken cancellationToken = default)
+        => _innerRuleEngine.RecommendResourcesForRequestAsync(request, availableResources, cancellationToken);
+
+    public Task<IReadOnlyList<AiShelterCandidateDto>> RecommendSheltersForRequestAsync(
+        AssistanceRequest request,
+        IReadOnlyList<Shelter> shelters,
+        CancellationToken cancellationToken = default)
+        => _innerRuleEngine.RecommendSheltersForRequestAsync(request, shelters, cancellationToken);
+
+    public Task<IReadOnlyList<AiVolunteerCandidateDto>> RecommendVolunteersForTaskAsync(
+        string requiredSkill,
+        double targetLat,
+        double targetLon,
+        IReadOnlyList<VolunteerProfile> volunteers,
+        CancellationToken cancellationToken = default)
+        => _innerRuleEngine.RecommendVolunteersForTaskAsync(requiredSkill, targetLat, targetLon, volunteers, cancellationToken);
+
+    public Task<IReadOnlyList<DemandForecastItemDto>> ForecastResourceDemandAsync(
+        Guid crisisEventId,
+        IReadOnlyList<AssistanceRequest> recentRequests,
+        IReadOnlyList<ResourceItem> currentInventory,
+        CancellationToken cancellationToken = default)
+        => _innerRuleEngine.ForecastResourceDemandAsync(crisisEventId, recentRequests, currentInventory, cancellationToken);
+
+    public async Task<MultilingualBriefingDto> GenerateMultilingualBriefingAsync(
+        CrisisEvent crisis,
+        int openRequestsCount,
+        int criticalCount,
+        string languageCode,
+        CancellationToken cancellationToken = default)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var briefing = await _innerRuleEngine.GenerateMultilingualBriefingAsync(crisis, openRequestsCount, criticalCount, languageCode, cancellationToken);
+        return briefing with { GeneratedByProvider = ProviderName };
+    }
+}
+
+public class AiProviderFactory : IAiProviderFactory
+{
+    private readonly IServiceResilienceMonitor _resilienceMonitor;
+    private readonly IMappingProviderService _mappingService;
+
+    public AiProviderFactory(IServiceResilienceMonitor resilienceMonitor, IMappingProviderService mappingService)
+    {
+        _resilienceMonitor = resilienceMonitor;
+        _mappingService = mappingService;
+    }
+
+    public IAiDecisionSupportService CreateProvider(bool forceFallback = false)
+    {
+        if (forceFallback || _resilienceMonitor.SimulateExternalAiFailure)
+        {
+            _resilienceMonitor.RecordTrip("AI");
+            return new FallbackHeuristicAiService(_mappingService);
+        }
+
+        return new PrimaryEnsembleAiService(_mappingService);
+    }
 }
