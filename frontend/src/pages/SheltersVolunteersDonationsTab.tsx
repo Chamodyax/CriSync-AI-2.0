@@ -1316,5 +1316,776 @@ export const DonationsTab: React.FC<{
   onRejectFlaggedDonation?: (id: string) => Promise<void>;
   onRecordExpenditure?: (campaignId: string, payload: { amountUsd: number; category: string; description: string }) => Promise<void>;
 }> = ({
+  userRole,
+  crises = [],
+  campaigns,
+  donations,
+  transparencyReport,
+  onCreateCampaign,
+  onRecordDonation,
+  onApproveFlaggedDonation,
+  onRejectFlaggedDonation,
+  onRecordExpenditure
+}) => {
+  const [selectedCampaignId, setSelectedCampaignId] = useState(campaigns[0]?.id || '');
+  const [donationType, setDonationType] = useState<'Monetary' | 'Material'>('Monetary');
+  const [donorName, setDonorName] = useState('');
+  const [amountUsd, setAmountUsd] = useState(250);
+  const [materialDescription, setMaterialDescription] = useState('');
+  const [materialQuantity, setMaterialQuantity] = useState(50);
+  const [purpose, setPurpose] = useState('');
+  const [cardLastFour, setCardLastFour] = useState('4242');
+
+  const [campaignTitle, setCampaignTitle] = useState('');
+  const [campaignCrisisId, setCampaignCrisisId] = useState(crises[0]?.id || '');
+  const [campaignTargetUsd, setCampaignTargetUsd] = useState(50000);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
+
+  const [expCampaignId, setExpCampaignId] = useState('');
+  const [expAmountUsd, setExpAmountUsd] = useState(2500);
+  const [expCategory, setExpCategory] = useState('MedicalSupplies');
+  const [expDescription, setExpDescription] = useState('');
+
+  const activeCampaignId = selectedCampaignId || campaigns[0]?.id || '';
+
+  const canApproveCompliance =
+    userRole === 'DonorOfficer' ||
+    userRole === 'EmergencyCoordinator' ||
+    userRole === 'SystemAdmin';
+
+  const handleCampaignSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onCreateCampaign || !campaignTitle.trim()) return;
+    setCreatingCampaign(true);
+    await onCreateCampaign({
+      title: campaignTitle,
+      crisisEventId: campaignCrisisId || crises[0]?.id || undefined,
+      targetAmountUsd: Number(campaignTargetUsd)
+    });
+    setCampaignTitle('');
+    setCreatingCampaign(false);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await onRecordDonation({
+      campaignId: activeCampaignId,
+      donorName,
+      donationType,
+      monetaryAmountUsd: donationType === 'Monetary' ? Number(amountUsd) : 0,
+      materialDescription: donationType === 'Material' ? materialDescription : '',
+      materialQuantity: donationType === 'Material' ? Math.max(1, Number(materialQuantity) || 1) : 0,
+      allocationPurpose: purpose,
+      sandboxCardLastFour: donationType === 'Monetary' ? cardLastFour || '4242' : '0000'
+    });
+    setDonorName('');
+    setMaterialDescription('');
+    setPurpose('');
+  };
+
+  const presetAmounts = [250, 2500, 10000, 50000];
+
+  return (
+    <div className="space-y-6">
+      {(canApproveCompliance || campaigns.length === 0) && onCreateCampaign && (
+        <div className="bento-glass rounded-3xl p-5 sm:p-6 border border-indigo-500/30">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-white/[0.08]">
+            <div className="w-9 h-9 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+              <HeartHandshake className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
+                Campaign Administration
+              </span>
+              <h2 className="text-base font-extrabold text-white">
+                Launch New Relief Fundraising Campaign
+              </h2>
+            </div>
+          </div>
+
+          {canApproveCompliance ? (
+            <form onSubmit={handleCampaignSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs items-start">
+              <div className="md:col-span-5">
+                <label className="block font-bold text-zinc-300 mb-1">Campaign Title</label>
+                <input
+                  type="text"
+                  required
+                  value={campaignTitle}
+                  onChange={(e) => setCampaignTitle(e.target.value)}
+                  placeholder="Official fundraising appeal name"
+                  className="rsvp-input"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: Emergency Medical & Clean Water Relief Fund 2026
+                </p>
+              </div>
+              <div className="md:col-span-3">
+                <label className="block font-bold text-zinc-300 mb-1">Linked Crisis (Optional)</label>
+                <select
+                  value={campaignCrisisId || crises[0]?.id || ''}
+                  onChange={(e) => setCampaignCrisisId(e.target.value)}
+                  className="rsvp-input"
+                >
+                  {crises.length === 0 && <option value="">General Emergency Fund</option>}
+                  {crises.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block font-bold text-zinc-300 mb-1">Target Goal (USD)</label>
+                <input
+                  type="number"
+                  min={100}
+                  required
+                  value={campaignTargetUsd}
+                  onChange={(e) => setCampaignTargetUsd(Number(e.target.value))}
+                  className="rsvp-input font-mono"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: 50000
+                </p>
+              </div>
+              <div className="md:col-span-2 md:pt-5">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  type="submit"
+                  disabled={creatingCampaign}
+                  className="keep-white w-full py-2.5 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  <span>{creatingCampaign ? 'Creating...' : 'Create Campaign'}</span>
+                </motion.button>
+              </div>
+            </form>
+          ) : (
+            <p className="text-xs text-amber-200 font-semibold">
+              No fundraising campaigns have been launched yet. Sign in as a Donor Officer, Emergency Coordinator, or System Admin to open the first campaign.
+            </p>
+          )}
+        </div>
+      )}
+
+      {campaigns && campaigns.length > 0 && (
+        <div className="bento-glass rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center gap-3 mb-5 pb-4 border-b border-white/[0.08]">
+            <div className="w-10 h-10 rounded-2xl bg-pink-500/20 border border-pink-500/40 text-pink-300 flex items-center justify-center shrink-0">
+              <HeartHandshake className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-pink-400">
+                Transparent Relief Fundraising
+              </span>
+              <h2 className="text-lg font-extrabold text-white">
+                Active Relief Campaigns & Progress
+              </h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {campaigns.map((c: any) => {
+              const pct = Math.min(
+                100,
+                Math.round(((c.collectedAmountUsd || 0) / Math.max(1, c.targetAmountUsd || 1)) * 100)
+              );
+              return (
+                <motion.div
+                  whileHover={{ y: -2 }}
+                  key={c.id}
+                  onClick={() => setSelectedCampaignId(c.id)}
+                    className={`cursor-pointer overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent border text-xs transition-all group ${activeCampaignId === c.id
+                      ? 'border-indigo-400 ring-2 ring-indigo-500/40'
+                      : 'border-indigo-500/30'
+                  }`}
+                >
+                  <div className="relative h-40 sm:h-44 overflow-hidden">
+                    <img
+                      src="/images/appeal-fundraising.jpg"
+                      alt={`${c.title} community relief campaign`}
+                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="crisync-photo-scrim absolute inset-0" />
+                    <div className="keep-white absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                      <span className="crisync-photo-pill-indigo px-2.5 py-1 rounded-full text-[10px] font-extrabold text-white">
+                        Verified Relief Appeal
+                      </span>
+                      <span className="crisync-photo-pill-emerald px-3 py-1 rounded-full text-white font-mono font-bold">
+                        {pct}% Funded
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-5 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-extrabold text-white text-base">{c.title}</p>
+                    </div>
+                    <p className="text-zinc-300 leading-relaxed">{c.description}</p>
+                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.65, ease: 'easeOut' }}
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full crisync-shimmer-bar"
+                      />
+                    </div>
+                    <div className="flex justify-between font-bold text-zinc-200 pt-1">
+                      <span>
+                        Raised So Far:{' '}
+                        <strong className="font-mono text-emerald-300 text-sm">
+                          ${(c.collectedAmountUsd || 0).toLocaleString()} USD
+                        </strong>
+                      </span>
+                      <span>
+                        Target Goal:{' '}
+                        <strong className="font-mono text-white text-sm">
+                          ${(c.targetAmountUsd || 0).toLocaleString()} USD
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 bento-glass rounded-3xl p-5 sm:p-6 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-white/[0.08]">
+            <div>
+              <h2 className="text-base sm:text-lg font-extrabold text-white">
+                {canApproveCompliance
+                  ? 'Recorded Donations & Large Gift Compliance Approval'
+                  : 'Recent Community & Partner Donations'}
+              </h2>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                High-value donations of $50,000 USD or above are automatically paused for human AML/KYC compliance review before release.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+              {donations.length} Donations
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {donations.length === 0 && (
+              <div className="p-6 rounded-2xl bg-black/20 border border-dashed border-white/15 text-center text-xs text-zinc-400">
+                No donations logged yet. Launch a fundraising campaign above (if needed) and record the first contribution on the right.
+              </div>
+            )}
+            {donations.map((d, idx) => {
+              const isFlagged = d.isFlaggedSuspicious && !d.isReviewedByHuman;
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.24, delay: Math.min(idx * 0.05, 0.25) }}
+                  key={d.id}
+                    className={`p-4 rounded-2xl border text-xs transition-all ${isFlagged
+                      ? 'crisync-critical-pulse bg-rose-500/10 border-rose-500/40'
+                      : 'bg-white/[0.025] border-white/[0.08]'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-extrabold text-white text-sm">{d.donorName}</span> —{' '}
+                      {d.donationType === 'Material' ? (
+                        <span className="font-mono font-extrabold text-amber-300 text-sm">
+                          {d.materialQuantity} × {d.materialDescription} (In-Kind Material)
+                        </span>
+                      ) : (
+                        <span className="font-mono font-extrabold text-emerald-300 text-sm">
+                          ${Number(d.monetaryAmountUsd || 0).toLocaleString()} USD
+                        </span>
+                      )}
+                      <p className="text-zinc-400 mt-1">
+                        Designated For: <strong className="text-zinc-200">{d.allocationPurpose}</strong> • Receipt:{' '}
+                        <span className="font-mono text-indigo-300">{d.paymentGatewayReference}</span>
+                      </p>
+                      {d.isFlaggedSuspicious && (
+                        <p className="text-rose-300 mt-1.5 font-bold flex items-center gap-1.5">
+                          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                          Large Gift Check (&ge;$50,000): {d.suspiciousReason}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full bg-white/10 text-zinc-200 font-bold">
+                        {d.verificationStatus}
+                      </span>
+                      {canApproveCompliance && isFlagged && (
+                        <>
+                          <motion.button
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => onApproveFlaggedDonation(d.id)}
+                            className="keep-white px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold flex items-center gap-1.5 shadow-sm"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Approve</span>
+                          </motion.button>
+                          {onRejectFlaggedDonation && (
+                            <motion.button
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => onRejectFlaggedDonation(d.id)}
+                              className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-extrabold flex items-center gap-1.5"
+                            >
+                              <X className="w-4 h-4" />
+                              <span>Reject</span>
+                            </motion.button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="lg:col-span-4 bento-glass rounded-3xl p-5 sm:p-6 h-fit">
+          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/[0.08]">
+            <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
+              <DollarSign className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-white">
+                Make or Record a Donation
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Log verified monetary gifts ($50,000+ triggers compliance review) or pledge in-kind material supplies.
+              </p>
+            </div>
+          </div>
+          <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">1. Target Relief Campaign</label>
+              <select
+                value={activeCampaignId}
+                onChange={(e) => setSelectedCampaignId(e.target.value)}
+                className="rsvp-input"
+              >
+                {campaigns.length === 0 ? (
+                  <option value="">No active campaigns yet</option>
+                ) : (
+                  campaigns.map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1.5">2. Contribution Type</label>
+              <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setDonationType('Monetary')}
+                    className={`py-2 px-3 rounded-xl font-extrabold transition ${donationType === 'Monetary'
+                      ? 'bg-emerald-600 text-white keep-white shadow-sm'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  Monetary (USD)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDonationType('Material')}
+                    className={`py-2 px-3 rounded-xl font-extrabold transition ${donationType === 'Material'
+                      ? 'bg-amber-600 text-white keep-white shadow-sm'
+                      : 'text-zinc-300 hover:text-white'
+                  }`}
+                >
+                  Material (In-Kind)
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">3. Donor or Organization Name</label>
+              <input
+                type="text"
+                required
+                value={donorName}
+                onChange={(e) => setDonorName(e.target.value)}
+                placeholder="Individual donor or sponsoring organization"
+                className="rsvp-input"
+              />
+              <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                Example: Community Relief Trust or Private Corporate Sponsor
+              </p>
+            </div>
+
+            {donationType === 'Monetary' ? (
+              <>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1.5">4. Quick Amount (USD)</label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {presetAmounts.map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setAmountUsd(amt)}
+                          className={`py-2 rounded-xl font-mono font-bold border transition ${amountUsd === amt
+                            ? 'bg-emerald-600 border-emerald-500 text-white keep-white'
+                            : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                        }`}
+                      >
+                        ${amt.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="block font-bold text-zinc-300 mb-1">Amount (USD)</label>
+                    <input
+                      type="number"
+                      min={10}
+                      required
+                      value={amountUsd}
+                      onChange={(e) => setAmountUsd(Number(e.target.value))}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Card Last 4</label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      value={cardLastFour}
+                      onChange={(e) => setCardLastFour(e.target.value)}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <label className="block font-bold text-zinc-300 mb-1">4. Item / Supply Description</label>
+                  <input
+                    type="text"
+                    required
+                    value={materialDescription}
+                    onChange={(e) => setMaterialDescription(e.target.value)}
+                    placeholder="e.g., Hygiene Kits, Blankets, Water Pumps"
+                    className="rsvp-input"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={materialQuantity}
+                    onChange={(e) => setMaterialQuantity(Number(e.target.value))}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">5. Designated Relief Purpose</label>
+              <input
+                type="text"
+                required
+                value={purpose}
+                onChange={(e) => setPurpose(e.target.value)}
+                placeholder="Specify intended relief allocation"
+                className="rsvp-input"
+              />
+              <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                Example: Emergency Medical & Drinking Water Logistics
+              </p>
+            </div>
+
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={!activeCampaignId}
+              className="keep-white w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              <HeartHandshake className="w-4 h-4" />
+              <span>{donationType === 'Material' ? 'Record Material Pledge' : 'Record Donation Now'}</span>
+            </motion.button>
+          </form>
+        </div>
+      </div>
+
+      {(transparencyReport || (canApproveCompliance && onRecordExpenditure && campaigns.length > 0)) && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className={`${canApproveCompliance && onRecordExpenditure && campaigns.length > 0 ? 'lg:col-span-8' : 'lg:col-span-12'} bento-glass rounded-3xl p-5 sm:p-6 space-y-4`}>
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
+                  Financial Accountability Ledger
+                </span>
+                <h3 className="text-base sm:text-lg font-extrabold text-white">
+                  Donor Fund Transparency &amp; Utilisation Report
+                </h3>
+              </div>
+              {transparencyReport && (
+                <span className="px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-xs font-bold text-emerald-300">
+                  Verified: {transparencyReport.verifiedDonationsCount} • Pending: {transparencyReport.pendingFlaggedDonationsCount} • Rejected: {transparencyReport.rejectedDonationsCount}
+                </span>
+              )}
+            </div>
+
+            {transparencyReport && (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                    <span className="text-zinc-400 font-bold block">Total Collected</span>
+                    <strong className="font-mono text-lg text-emerald-300">
+                      ${Number(transparencyReport.totalCollectedUsd || 0).toLocaleString()} USD
+                    </strong>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                    <span className="text-zinc-400 font-bold block">Disbursed on Relief</span>
+                    <strong className="font-mono text-lg text-indigo-300">
+                      ${Number(transparencyReport.totalDisbursedUsd || 0).toLocaleString()} USD
+                    </strong>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                    <span className="text-zinc-400 font-bold block">Remaining Balance</span>
+                    <strong className="font-mono text-lg text-amber-300">
+                      ${Number(transparencyReport.totalRemainingUsd || 0).toLocaleString()} USD
+                    </strong>
+                  </div>
+                </div>
+
+                {Object.entries(transparencyReport.expenditureByCategory || {}).length > 0 && (
+                  <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/[0.07] space-y-2 text-xs">
+                    <p className="font-bold text-zinc-200">Expenditure Breakdown by Sector</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {Object.entries(transparencyReport.expenditureByCategory || {}).map(([cat, amt]) => (
+                        <div key={cat} className="flex items-center justify-between p-2.5 rounded-xl bg-black/20 border border-white/10">
+                          <span className="text-zinc-300 font-semibold">{cat}</span>
+                          <span className="font-mono font-bold text-emerald-300">${Number(amt).toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2.5 text-xs">
+                  {(transparencyReport.campaigns || []).map((c: any) => (
+                    <div key={c.campaignId} className="p-4 rounded-2xl bg-white/[0.025] border border-white/[0.08] space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-extrabold text-white">{c.title}</span>
+                        <span className="font-mono text-indigo-300 font-bold">
+                          {c.utilisationPercentage}% Disbursed (${Number(c.disbursedAmountUsd).toLocaleString()} / ${Number(c.collectedAmountUsd).toLocaleString()})
+                        </span>
+                      </div>
+                      {(c.expenditures || []).map((exp: any) => (
+                        <div key={exp.id} className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-300 bg-black/20 px-3 py-2 rounded-xl border border-white/[0.06]">
+                          <span>
+                            <strong className="text-emerald-300">[{exp.category}]</strong> {exp.description}
+                          </span>
+                          <span className="font-mono font-bold text-white">
+                            -${Number(exp.amountUsd).toLocaleString()} USD • {exp.recordedByUserName}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {canApproveCompliance && onRecordExpenditure && campaigns.length > 0 && (
+            <div className="lg:col-span-4 bento-glass rounded-3xl p-5 sm:p-6 h-fit space-y-3.5 text-xs">
+              <div className="pb-3 border-b border-white/[0.08]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 block">
+                  Disbursement Audit Control
+                </span>
+                <h3 className="text-base font-extrabold text-white">
+                  Record Relief Expenditure
+                </h3>
+              </div>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const targetCamp = expCampaignId || campaigns[0]?.id;
+                  if (!targetCamp || !expDescription.trim()) return;
+                  await onRecordExpenditure(targetCamp, {
+                    amountUsd: Number(expAmountUsd),
+                    category: expCategory,
+                    description: expDescription
+                  });
+                  setExpDescription('');
+                }}
+                className="space-y-3"
+              >
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Campaign</label>
+                  <select
+                    value={expCampaignId || campaigns[0]?.id || ''}
+                    onChange={(e) => setExpCampaignId(e.target.value)}
+                    className="rsvp-input"
+                  >
+                    {campaigns.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Category</label>
+                    <select
+                      value={expCategory}
+                      onChange={(e) => setExpCategory(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      <option value="MedicalSupplies">Medical Supplies</option>
+                      <option value="FoodAndWaterLogistics">Food &amp; Water</option>
+                      <option value="ShelterOperations">Shelter Operations</option>
+                      <option value="SearchAndRescue">Search &amp; Rescue</option>
+                      <option value="ReliefOperations">Relief Operations</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Amount (USD)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      required
+                      value={expAmountUsd}
+                      onChange={(e) => setExpAmountUsd(Number(e.target.value))}
+                      className="rsvp-input font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Expenditure Description</label>
+                  <textarea
+                    rows={2}
+                    required
+                    value={expDescription}
+                    onChange={(e) => setExpDescription(e.target.value)}
+                    placeholder="Supplier invoice or field distribution purpose"
+                    className="rsvp-input resize-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="keep-white w-full py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold shadow-sm"
+                >
+                  Approve &amp; Record Disbursement
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
+
+const ADMIN_EDITABLE_ROLES = [
+  'Citizen',
+  'Donor',
+  'Volunteer',
+  'EmergencyCoordinator',
+  'CaseManager',
+  'LogisticsManager',
+  'ShelterAdmin',
+  'VolunteerCoordinator',
+  'DonorOfficer',
+  'PartnerOfficer',
+  'OrganizationAdmin',
+  'SystemAdmin'
+];
+
+const CRISIS_TYPES = ['Flood', 'Landslide', 'Earthquake', 'SevereStorm', 'DiseaseOutbreak', 'MassDisplacement', 'Other'];
+const CRISIS_SEVERITIES = ['Low', 'Moderate', 'High', 'Critical', 'Catastrophic'];
+const RESOURCE_CATEGORIES = ['Food', 'Medicine', 'TemporaryShelter', 'Transportation', 'AccessibilityAssistance', 'WaterAndSanitation', 'SearchAndRescue', 'MedicalEvacuation'];
+const SHELTER_STATUSES = ['Operational', 'AtCapacity', 'Maintenance', 'Closed'];
+
+const SystemAdminControlCenter: React.FC<{
+  userRole: string;
+  adminUsers: any[];
+  currentUserId?: string;
+  organisations: any[];
+  crises: any[];
+  shelters: any[];
+  resources: any[];
+  requests: any[];
+  volunteers: any[];
+  campaigns: any[];
+  adminPartnerships?: any[];
+  rolePermissions?: any[];
+  systemConfig?: any;
+  serviceSettings?: any;
+  onAdminCreateUser?: (payload: any) => Promise<any>;
+  onInviteStaff?: (payload: any) => Promise<any>;
+  onAdminUpdateUser?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteUser?: (id: string, label: string) => Promise<void>;
+  onApprovePartnership?: (orgId: string, orgName: string) => Promise<void>;
+  onRejectPartnership?: (orgId: string, orgName: string) => Promise<void>;
+  onAddRolePermission?: (payload: any) => Promise<void>;
+  onDeleteRolePermission?: (id: string) => Promise<void>;
+  onUpdateSystemConfig?: (payload: any) => Promise<void>;
+  onUpdateServiceSettings?: (payload: any) => Promise<void>;
+  onAdminUpdateCrisis?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteCrisis?: (id: string, label: string) => Promise<void>;
+  onAdminUpdateShelter?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteShelter?: (id: string, label: string) => Promise<void>;
+  onAdminUpdateResource?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteResource?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteRequest?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteVolunteer?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteCampaign?: (id: string, label: string) => Promise<void>;
+}> = ({
+  userRole,
+  adminUsers,
+  currentUserId,
+  organisations,
+  crises,
+  shelters,
+  resources,
+  requests,
+  volunteers,
+  campaigns,
+  adminPartnerships = [],
+  rolePermissions = [],
+  systemConfig,
+  serviceSettings,
+  );
+};
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
