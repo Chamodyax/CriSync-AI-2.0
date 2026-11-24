@@ -1537,5 +1537,102 @@ public class LogisticsSheltersVolunteersDonationsController : ControllerBase
                 OpenRequestsCount = openRequestsInZone,
                 NearbySheltersCount = nearbyShelters.Count,
                 AvailableShelterBeds = availableBeds,
+                NearbyDepotsCount = nearbyDepots,
+                ServiceCentresCount = serviceCentres,
+                CoverageStatus = coverageStatus
+            };
+        }).ToList();
+
+        return Ok(new
+        {
+            TotalOperationalZones = zoneReports.Count,
+            CriticalGapZonesCount = zoneReports.Count(z => z.CoverageStatus == "CriticalGap"),
+            Zones = zoneReports
+        });
+    }
+
+    [HttpGet("admin/metrics")]
+    [Authorize]
+    public async Task<ActionResult<OperationalKpiMetricsDto>> GetMetrics(CancellationToken cancellationToken)
+    {
+        var metrics = await _opsService.GetOperationalMetricsAsync(cancellationToken);
+
+        var snapshots = await _unitOfWork.OperationalKpiSnapshots.GetAllAsync(cancellationToken);
+        var latest = snapshots.OrderByDescending(s => s.CapturedAtUtc).FirstOrDefault();
+        if (latest == null || (DateTime.UtcNow - latest.CapturedAtUtc).TotalMinutes >= 15)
+        {
+            await _unitOfWork.OperationalKpiSnapshots.AddAsync(new OperationalKpiSnapshot
+            {
+                TotalRequests = metrics.TotalRequests,
+                UnresolvedCasesCount = metrics.UnresolvedCasesCount,
+                CriticalOpenCasesCount = metrics.CriticalOpenCasesCount,
+                AverageResponseTimeMinutes = metrics.AverageResponseTimeMinutes,
+                ResourceUtilisationPercentage = metrics.ResourceUtilisationPercentage,
+                ShelterOccupancyPercentage = metrics.ShelterOccupancyPercentage,
+                TotalDonationsCollectedUsd = metrics.TotalDonationsCollectedUsd,
+                CapturedAtUtc = DateTime.UtcNow
+            }, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return Ok(metrics);
+    }
+
+    [HttpGet("admin/metrics/history")]
+    [Authorize]
+    public async Task<ActionResult> GetMetricsHistory(CancellationToken cancellationToken)
+    {
+        var snapshots = await _unitOfWork.OperationalKpiSnapshots.GetAllAsync(cancellationToken);
+        return Ok(snapshots.OrderBy(s => s.CapturedAtUtc));
+    }
+
+    [HttpGet("admin/audit-logs")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin,EmergencyCoordinator")]
+    public async Task<ActionResult> GetAuditLogs(CancellationToken cancellationToken)
+    {
+        var logs = await _unitOfWork.AuditEvents.GetAllAsync(cancellationToken);
+        return Ok(logs);
+    }
+
+    [HttpGet("admin/resilience")]
+    [Authorize]
+    public ActionResult<ResilienceStatusDto> GetResilienceStatus()
+    {
+        return Ok(_resilienceMonitor.GetStatus());
+    }
+
+    [HttpPost("admin/resilience/toggle")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin,EmergencyCoordinator")]
+    public async Task<ActionResult<ResilienceStatusDto>> ToggleResilienceSimulation(
+        [FromQuery] string service = "AI",
+        [FromQuery] bool simulateFailure = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (service.Equals("AI", StringComparison.OrdinalIgnoreCase))
+        {
+            _resilienceMonitor.SimulateExternalAiFailure = simulateFailure;
+        }
+        else if (service.Equals("Mapping", StringComparison.OrdinalIgnoreCase))
+        {
+            _resilienceMonitor.SimulateExternalMappingFailure = simulateFailure;
+        }
+        else if (service.Equals("Notification", StringComparison.OrdinalIgnoreCase))
+        {
+            _resilienceMonitor.SimulateExternalNotificationFailure = simulateFailure;
+        }
+
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "ResilienceSimulation",
+            ActionName = $"ToggleExternalFailure_{service}",
+            EntityType = "ExternalServiceCircuitBreaker",
+            EntityId = service,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "SystemAdmin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "SystemAdmin",
+            DetailsJson = JsonSerializer.Serialize(new { service, simulateFailure })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(_resilienceMonitor.GetStatus());
     }
 }
