@@ -154,37 +154,144 @@ public class ResilientMappingProviderService : IMappingProviderService
     }
 
     private bool IsLiveOsmEnabled() =>
-}
+        _httpClientFactory != null &&
+        !string.Equals(_configuration?["ExternalServices:EnableLiveOsmCalls"], "false", StringComparison.OrdinalIgnoreCase);
 
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    private int GetHttpTimeoutSeconds() =>
+        int.TryParse(_configuration?["ExternalServices:HttpTimeoutSeconds"], out int sec) && sec > 0 ? sec : 3;
 
-    internal static string BuildCompositeKey(string district, string category, string title)
+    public double CalculateDistanceKm(double lat1, double lon1, double lat2, double lon2)
     {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        const double earthRadiusKm = 6371.0;
+        double dLat = DegreesToRadians(lat2 - lat1);
+        double dLon = DegreesToRadians(lon2 - lon1);
+        double a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                   Math.Cos(DegreesToRadians(lat1)) * Math.Cos(DegreesToRadians(lat2)) *
+                   Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        double c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+        return Math.Round(earthRadiusKm * c, 2);
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    public async Task<RouteCalculationDto> CalculateRouteAsync(
+        double originLat,
+        double originLon,
+        double destLat,
+        double destLon,
+        CancellationToken cancellationToken = default)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        double haversineKm = CalculateDistanceKm(originLat, originLon, destLat, destLon);
+        if (_resilienceMonitor.SimulateExternalMappingFailure)
+        {
+            _resilienceMonitor.RecordTrip("Mapping");
+            return BuildHaversineFallbackRoute(haversineKm);
+        }
+
+        if (IsLiveOsmEnabled())
+        {
+            string url = string.Format(
+                CultureInfo.InvariantCulture,
+                "https://router.project-osrm.org/route/v1/driving/{0},{1};{2},{3}?overview=false",
+                originLon,
+                originLat,
+                destLon,
+                destLat);
+
+            int timeoutSec = GetHttpTimeoutSeconds();
+            for (int attempt = 1; attempt <= 2; attempt++)
+            {
+                try
+                {
+                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    cts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
+
+                    var client = _httpClientFactory!.CreateClient();
+                    using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                    request.Headers.UserAgent.ParseAdd("CriSync-Humanitarian-Platform/1.0");
+
+                    using var response = await client.SendAsync(request, cts.Token);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+                        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token);
+                        if (doc.RootElement.TryGetProperty("routes", out var routesEl) &&
+                            routesEl.ValueKind == JsonValueKind.Array &&
+                            routesEl.GetArrayLength() > 0)
+                        {
+                            var firstRoute = routesEl[0];
+                            double meters = firstRoute.GetProperty("distance").GetDouble();
+                            double durationSec = firstRoute.GetProperty("duration").GetDouble();
+                            double roadKm = Math.Round(meters / 1000.0, 2);
+                            int mins = Math.Max(3, (int)Math.Ceiling(durationSec / 60.0));
+
+                            return new RouteCalculationDto(
+                                roadKm,
+                                mins,
+                                $"Live OSRM Humanitarian Relief Corridor ({roadKm} km via OpenStreetMap road network, ETA {mins} mins)",
+                                "OpenStreetMap-OSRM-Live"
+                            );
+                        }
+                    }
+                }
+                catch
+                {
+                }
+
+                if (attempt < 2)
+                {
+                    await Task.Delay(150 * attempt, cancellationToken);
+                }
+            }
+
+            _resilienceMonitor.RecordTrip("Mapping");
+            return BuildHaversineFallbackRoute(haversineKm);
+        }
+
+        double roadDistanceKm = Math.Round(haversineKm * 1.22, 2);
+        int travelMinutes = Math.Max(5, (int)Math.Ceiling(roadDistanceKm * 1.45));
+        return new RouteCalculationDto(
+            roadDistanceKm,
+            travelMinutes,
+            $"OSRM Humanitarian Relief Corridor ({roadDistanceKm} km via primary arterial route, ETA {travelMinutes} mins)",
+            "OpenStreetMap-OSRM-Gateway"
+        );
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    public async Task<GeocodingResultDto> GeocodeAddressAsync(string address, CancellationToken cancellationToken = default)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        if (_resilienceMonitor.SimulateExternalMappingFailure)
+        {
+            _resilienceMonitor.RecordTrip("Mapping");
+            return ResolveOfflineGazetteer(address);
+        }
+
+        if (IsLiveOsmEnabled() && !string.IsNullOrWhiteSpace(address))
+        {
+            string url = $"https://nominatim.openstreetmap.org/search?format=json&limit=1&q={Uri.EscapeDataString(address.Trim())}";
+            using var doc = await TrySendNominatimGetAsync(url, cancellationToken);
+            if (doc != null && doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0)
+            {
+                var first = doc.RootElement[0];
+                string displayName = first.TryGetProperty("display_name", out var dn) ? dn.GetString() ?? address : address;
+                if (double.TryParse(first.GetProperty("lat").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double lat) &&
+                    double.TryParse(first.GetProperty("lon").GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double lon))
+                {
+                    return new GeocodingResultDto(displayName, Math.Round(lat, 4), Math.Round(lon, 4), "Nominatim-OSM-Live");
+                }
+            }
+
+            _resilienceMonitor.RecordTrip("Mapping");
+            return ResolveOfflineGazetteer(address);
+        }
+
+        return ResolveLocalKnownAddress(address, "Nominatim-OSM");
+    }
+
+    public async Task<GeocodingResultDto> ReverseGeocodeAsync(double latitude, double longitude, CancellationToken cancellationToken = default)
+    {
+        if (_resilienceMonitor.SimulateExternalMappingFailure)
+        {
+            _resilienceMonitor.RecordTrip("Mapping");
+            return ResolveOfflineReverseGazetteer(latitude, longitude, "OfflineGazetteerFallback");
+        }
+    }
 }
