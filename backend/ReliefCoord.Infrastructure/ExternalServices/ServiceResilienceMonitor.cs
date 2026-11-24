@@ -41,36 +41,39 @@ public class ServiceResilienceMonitor : IServiceResilienceMonitor
             SimulateExternalNotificationFailure,
             AiCircuitTripCount,
             MappingCircuitTripCount,
+            NotificationCircuitTripCount,
+            aiMode,
+            mappingMode,
+            notificationMode
+        );
+    }
+}
 
-internal static class LegacyCrisisDraftMapper
+public class GovernanceConfigProvider : IGovernanceConfigProvider
 {
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    private readonly object _configLock = new();
+    private SystemGovernanceConfigDto _config = new(
+        MinGlobalAdmins: 2,
+        MaxGlobalAdmins: 3,
+        MaxOrganizationAdmins: 3,
+        RequireVolunteerCoordinatorVerification: true,
+        RequirePartnerAdminApproval: true,
+        HighValueDonationThresholdUsd: 50000m
+    );
 
-    internal static string BuildCompositeKey(string district, string category, string title)
+    public SystemGovernanceConfigDto GetConfig()
     {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        lock (_configLock)
+        {
+            return _config;
+        }
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    public void UpdateConfig(SystemGovernanceConfigDto config)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        lock (_configLock)
+        {
+            _config = config;
+        }
     }
-
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
 }
