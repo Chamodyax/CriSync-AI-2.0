@@ -566,5 +566,271 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({
                             min={1}
                             value={replenishAmounts[r.id] ?? 25}
                             onChange={(e) =>
+                              setReplenishAmounts((prev) => ({
+                                ...prev,
+                                [r.id]: Math.max(1, Number(e.target.value) || 1)
+                              }))
+                            }
+                            className="w-16 px-2 py-0.5 rounded-lg bg-black/30 border border-white/15 text-xs text-white font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onReplenishResource(
+                                r.id,
+                                replenishAmounts[r.id] ?? 25,
+                                'Warehouse stock replenishment'
+                              )
+                            }
+                            className="keep-white px-2 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-sans font-bold text-[11px] inline-flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Restock</span>
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {r.supportsColdChain ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-semibold">
+                          <Snowflake className="w-3.5 h-3.5" />
+                          Refrigerated
+                        </span>
+                      ) : (
+                        <span className="text-zinc-400">Room Temp</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono text-zinc-400">
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-zinc-500" />
+                        {r.expiryDateUtc ? new Date(r.expiryDateUtc).toLocaleDateString() : 'N/A'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {canDispatch && (
+          <div className="lg:col-span-4 bento-glass rounded-3xl p-5 sm:p-6 h-fit">
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/[0.08]">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center shrink-0">
+                <PackagePlus className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  Add New Stock to Warehouse
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Record incoming supplies or partner donations
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateResource} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Supply Item Name</label>
+                <input
+                  type="text"
+                  required
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  placeholder="Enter exact supply description"
+                  className="rsvp-input"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: Bottled Drinking Water (5L Packs) or Cold-Chain Insulin Vials
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Category</label>
+                  <select
+                    value={itemCategory}
+                    onChange={(e) => setItemCategory(e.target.value)}
+                    className="rsvp-input"
+                  >
+                    <option value="Medicine">Medicine</option>
+                    <option value="Food">Food</option>
+                    <option value="WaterAndSanitation">Clean Water &amp; Sanitation</option>
+                    <option value="TemporaryShelter">Shelter Supplies</option>
+                    <option value="Transportation">Emergency Transportation</option>
+                    <option value="AccessibilityAssistance">Accessibility &amp; Mobility Aids</option>
+                    <option value="SearchAndRescue">Search &amp; Rescue Gear</option>
+                    <option value="MedicalEvacuation">Medical Evacuation</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={totalQty}
+                    onChange={(e) => setTotalQty(Number(e.target.value))}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    required
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="Units / Vials / Packs"
+                    className="rsvp-input"
+                  />
+                  <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                    Example: Kits, Packs
+                  </p>
+                </div>
+              </div>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Warehouse Location Name</label>
+                <input
+                  type="text"
+                  required
+                  value={warehouseName}
+                  onChange={(e) => setWarehouseName(e.target.value)}
+                  placeholder="Depot or storage facility name"
+                  className="rsvp-input"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: Central Port Relief Depot / District Cold Storage
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Warehouse Lat</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={warehouseLat}
+                    onChange={(e) => setWarehouseLat(Number(e.target.value))}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Warehouse Lon</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={warehouseLon}
+                    onChange={(e) => setWarehouseLon(Number(e.target.value))}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-zinc-400/75 opacity-75 -mt-1 font-normal">
+                Example: GPS coordinates (6.9271, 79.8612) used for distance-based dispatch matching
+              </p>
+              <label className="flex items-center gap-2.5 text-zinc-200 font-semibold cursor-pointer p-3 rounded-2xl bg-black/20 border border-white/10">
+                <input
+                  type="checkbox"
+                  checked={coldChain}
+                  onChange={(e) => setColdChain(e.target.checked)}
+                  className="w-4 h-4 rounded border-white/20 bg-black/40 text-cyan-500"
+                />
+                <Snowflake className="w-4 h-4 text-cyan-400" />
+                Requires Refrigerated Cold-Storage
+              </label>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                className="keep-white w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-sm flex items-center justify-center gap-1.5 transition"
+              >
+                <PackagePlus className="w-4 h-4" />
+                <span>Add Stock to Warehouse</span>
+              </motion.button>
+            </form>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-6 bento-glass rounded-3xl p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  Active Dispatch Convoys &amp; Deliveries
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Track vehicle routes and confirm physical handoff at field drop points
+                </p>
+              </div>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+              {dispatches.length} Convoys
+            </span>
+          </div>
+          {dispatches.length === 0 ? (
+            <p className="text-xs text-zinc-400">
+              No active dispatches yet. Confirm a delivery plan above to launch a convoy.
+            </p>
+          ) : (
+            <div className="space-y-2.5 text-xs max-h-72 overflow-y-auto pr-1 content-scroll">
+              {dispatches.map((d) => (
+                <div
+                  key={d.id}
+                  className="p-3.5 rounded-2xl bg-white/[0.025] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-extrabold text-white">{d.vehicleRegistration}</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-bold text-[11px] border ${
+                          d.dispatchStatus === 'Delivered'
+                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                            : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                        }`}
+                      >
+                        {d.dispatchStatus}
+                      </span>
+                    </div>
+                    <p className="text-zinc-300">{d.routeSummary}</p>
+                    <p className="text-zinc-400 font-mono text-[11px]">
+                      {d.distanceKm} km • ETA {d.estimatedTravelMinutes} mins
+                    </p>
+                  </div>
+                  {canDispatch && onMarkDispatchDelivered && d.dispatchStatus !== 'Delivered' && (
+                    <button
+                      type="button"
+                      onClick={() => onMarkDispatchDelivered(d.id)}
+                      className="keep-white px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 shadow-sm"
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
