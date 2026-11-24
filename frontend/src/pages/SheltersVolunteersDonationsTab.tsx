@@ -127,7 +127,7 @@ export const SheltersTab: React.FC<{
       currentOccupancy: 0,
       isWheelchairAccessible: newWheelchair,
       hasMedicalFacility: newMedical,
-      hasCleanWater: true,
+      hasCleanWater: false,
       hasPowerBackup: true,
       hasChildSafeSpace: true,
       availableServices: 'Emergency Shelter, Clean Water, Basic First Aid',
@@ -3458,34 +3458,663 @@ const SystemAdminControlCenter: React.FC<{
                           }
                         }}
                         className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-200 text-[11px] font-bold inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>{isEditing ? 'Close' : 'Edit'}</span>
+                      </button>
+                      {onAdminDeleteResource && renderDeleteButton(editKey, () => onAdminDeleteResource(r.id, r.name))}
+                    </div>
+                  </div>
+                  {isEditing && onAdminUpdateResource && (
+                    <div className="pt-3 border-t border-white/[0.08] grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Item Name</label>
+                        <input
+                          type="text"
+                          value={entityDraft.name}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, name: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Category</label>
+                        <select
+                          value={entityDraft.category}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, category: e.target.value })}
+                          className="rsvp-input"
+                        >
+                          {RESOURCE_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Warehouse</label>
+                        <input
+                          type="text"
+                          value={entityDraft.warehouseName}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, warehouseName: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Total Quantity</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={entityDraft.totalQuantity}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, totalQuantity: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Available Quantity</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={entityDraft.availableQuantity}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, availableQuantity: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            runBusy(editKey, async () => {
+                              await onAdminUpdateResource(r.id, entityDraft);
+                              setEditingEntityKey(null);
+                            })
+                          }
+                          className="keep-white px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Stock Item</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {adminTab === 'requests' && (
+        <div className="space-y-2.5">
+          {requests.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No citizen assistance requests submitted yet.</p>
+          ) : (
+            requests.map((req) => (
+              <div key={req.id} className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-extrabold text-white">
+                    {req.referenceCode}: {req.title}
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {req.category} • Status: {req.status} • Urgency: {req.finalApprovedUrgency} • {req.locationAddress}
+                  </p>
+                </div>
+                {onAdminDeleteRequest &&
+                  renderDeleteButton(`req:${req.id}`, () => onAdminDeleteRequest(req.id, req.referenceCode || req.title))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {adminTab === 'volunteers' && (
+        <div className="space-y-2.5">
+          {volunteers.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No volunteer profiles registered yet.</p>
+          ) : (
+            volunteers.map((v) => (
+              <div key={v.id} className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-extrabold text-white">{v.fullName}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Skills: {v.skillsCsv || 'General'} • Schedule: {v.availabilitySchedule}
+                  </p>
+                </div>
+                {onAdminDeleteVolunteer &&
+                  renderDeleteButton(`vol:${v.id}`, () => onAdminDeleteVolunteer(v.id, v.fullName))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {adminTab === 'campaigns' && (
+        <div className="space-y-2.5">
+          {campaigns.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No fundraising campaigns created yet.</p>
+          ) : (
+            campaigns.map((camp) => (
+              <div key={camp.id} className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-extrabold text-white">{camp.title}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    Raised: ${Number(camp.collectedAmountUsd || 0).toLocaleString()} / Target: ${Number(camp.targetAmountUsd || 0).toLocaleString()}
+                  </p>
+                </div>
+                {onAdminDeleteCampaign &&
+                  renderDeleteButton(`camp:${camp.id}`, () => onAdminDeleteCampaign(camp.id, camp.title))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
+export const MapAndResilienceTab: React.FC<{
+  userRole: string;
+  requests: any[];
+  shelters: any[];
+  resources: any[];
+  operationalAreas: any[];
+  mappingReferences?: any[];
+  coverageReport?: any | null;
+  resilienceStatus: any;
+  routeCalc: any;
+  auditLogs: any[];
+  adminUsers?: any[];
+  currentUserId?: string;
+  organisations?: any[];
+  crises?: any[];
+  volunteers?: any[];
+  campaigns?: any[];
+  adminPartnerships?: any[];
+  rolePermissions?: any[];
+  systemConfig?: any;
+  serviceSettings?: any;
+  onAdminCreateUser?: (payload: any) => Promise<any>;
+  onInviteStaff?: (payload: any) => Promise<any>;
+  onAdminUpdateUser?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteUser?: (id: string, label: string) => Promise<void>;
+  onApprovePartnership?: (orgId: string, orgName: string) => Promise<void>;
+  onRejectPartnership?: (orgId: string, orgName: string) => Promise<void>;
+  onAddRolePermission?: (payload: any) => Promise<void>;
+  onDeleteRolePermission?: (id: string) => Promise<void>;
+  onUpdateSystemConfig?: (payload: any) => Promise<void>;
+  onUpdateServiceSettings?: (payload: any) => Promise<void>;
+  onAdminUpdateCrisis?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteCrisis?: (id: string, label: string) => Promise<void>;
+  onAdminUpdateShelter?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteShelter?: (id: string, label: string) => Promise<void>;
+  onAdminUpdateResource?: (id: string, payload: any) => Promise<void>;
+  onAdminDeleteResource?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteRequest?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteVolunteer?: (id: string, label: string) => Promise<void>;
+  onAdminDeleteCampaign?: (id: string, label: string) => Promise<void>;
+  activeLanguage?: SupportedLanguage;
+  onChangeLanguage?: (lang: SupportedLanguage) => void;
+  onCalculateRoute: (originLat?: number, originLon?: number, destLat?: number, destLon?: number) => Promise<void>;
+  onToggleResilience: (service: string, currentValue: boolean) => Promise<void>;
+  onRetryFailedNotifications?: () => Promise<void>;
+  onSendIdempotentNotification: (
+    idempotencyKey: string,
+    languageCode?: string,
+    subject?: string,
+    messageBody?: string
+  ) => Promise<void>;
+}> = ({
+  userRole,
+  requests,
+  shelters,
+  resources,
+  operationalAreas,
+  mappingReferences = [],
+  coverageReport = null,
+  resilienceStatus,
+  routeCalc,
+  auditLogs,
+  adminUsers = [],
+  currentUserId,
+  organisations = [],
+  crises = [],
+  volunteers = [],
+  campaigns = [],
+  adminPartnerships = [],
+  rolePermissions = [],
+  systemConfig,
+  serviceSettings,
+  onAdminCreateUser,
+  onInviteStaff,
+  onAdminUpdateUser,
+  onAdminDeleteUser,
+  onApprovePartnership,
+  onRejectPartnership,
+  onAddRolePermission,
+  onDeleteRolePermission,
+  onUpdateSystemConfig,
+  onUpdateServiceSettings,
+  onAdminUpdateCrisis,
+  onAdminDeleteCrisis,
+  onAdminUpdateShelter,
+  onAdminDeleteShelter,
+  onAdminUpdateResource,
+  onAdminDeleteResource,
+  onAdminDeleteRequest,
+  onAdminDeleteVolunteer,
+  onAdminDeleteCampaign,
+  activeLanguage = 'si',
+  onChangeLanguage,
+  onCalculateRoute,
+  onToggleResilience,
+  onRetryFailedNotifications,
+  onSendIdempotentNotification
+}) => {
+  const [idempKey, setIdempKey] = useState('');
+  const [smsLang, setSmsLang] = useState<SupportedLanguage>(activeLanguage || 'si');
+    const [routeOriginWarehouseId, setRouteOriginWarehouseId] = useState<string>('');
+    const [routeDestRequestId, setRouteDestRequestId] = useState<string>('');
 
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
+  const smsBundle = TRANSLATIONS[smsLang]?.smsNotification || TRANSLATIONS.en.smsNotification;
 
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
+  const isSystemAdminOrCoord =
+    userRole === 'SystemAdmin' || userRole === 'OrganizationAdmin' || userRole === 'EmergencyCoordinator';
 
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
+  return (
+    <div className="space-y-6">
+      {(userRole === 'SystemAdmin' || userRole === 'OrganizationAdmin') && (
+        <SystemAdminControlCenter
+          userRole={userRole}
+          adminUsers={adminUsers}
+          currentUserId={currentUserId}
+          organisations={organisations}
+          crises={crises}
+          shelters={shelters}
+          resources={resources}
+          requests={requests}
+          volunteers={volunteers}
+          campaigns={campaigns}
+          adminPartnerships={adminPartnerships}
+          rolePermissions={rolePermissions}
+          systemConfig={systemConfig}
+          serviceSettings={serviceSettings}
+          onAdminCreateUser={onAdminCreateUser}
+          onInviteStaff={onInviteStaff}
+          onAdminUpdateUser={onAdminUpdateUser}
+          onAdminDeleteUser={onAdminDeleteUser}
+          onApprovePartnership={onApprovePartnership}
+          onRejectPartnership={onRejectPartnership}
+          onAddRolePermission={onAddRolePermission}
+          onDeleteRolePermission={onDeleteRolePermission}
+          onUpdateSystemConfig={onUpdateSystemConfig}
+          onUpdateServiceSettings={onUpdateServiceSettings}
+          onAdminUpdateCrisis={onAdminUpdateCrisis}
+          onAdminDeleteCrisis={onAdminDeleteCrisis}
+          onAdminUpdateShelter={onAdminUpdateShelter}
+          onAdminDeleteShelter={onAdminDeleteShelter}
+          onAdminUpdateResource={onAdminUpdateResource}
+          onAdminDeleteResource={onAdminDeleteResource}
+          onAdminDeleteRequest={onAdminDeleteRequest}
+          onAdminDeleteVolunteer={onAdminDeleteVolunteer}
+          onAdminDeleteCampaign={onAdminDeleteCampaign}
+        />
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div
+            className={`${isSystemAdminOrCoord ? 'lg:col-span-8' : 'lg:col-span-12'
+          } bento-glass rounded-3xl p-5 sm:p-6 space-y-4`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                Live Crisis Map
+              </span>
+              <h2 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-indigo-400" />
+                Interactive Flood Map (Requests, Shelters & Warehouses)
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400 mt-1.5">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
+                  Red/Orange Pins: Help Requests
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                  Green Pins: Open Shelters
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" />
+                  Purple Pins: Supply Warehouses
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block" />
+                  Cyan Pins: Service Centres / Staging Points
+                </span>
+              </div>
+            </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  aria-label="Route Origin Warehouse"
+                  value={routeOriginWarehouseId}
+                  onChange={(e) => setRouteOriginWarehouseId(e.target.value)}
+                  className="rsvp-input py-1.5 px-2.5 text-xs bg-zinc-900 border-white/15 max-w-xs"
+                >
+                  <option value="">Default Warehouse (Auto)</option>
+                  {resources.map((res: any) => (
+                    <option key={res.id} value={res.id}>
+                      Warehouse: {res.warehouseName || res.itemCategory} ({res.warehouseDistrict || 'Base'})
+                    </option>
+                  ))}
+                </select>
+                <span className="text-zinc-500 text-xs">➔</span>
+                <select
+                  aria-label="Route Destination Case"
+                  value={routeDestRequestId}
+                  onChange={(e) => setRouteDestRequestId(e.target.value)}
+                  className="rsvp-input py-1.5 px-2.5 text-xs bg-zinc-900 border-white/15 max-w-xs truncate"
+                >
+                  <option value="">Default Incident (Auto)</option>
+                  {requests.map((req: any) => (
+                    <option key={req.id} value={req.id}>
+                      Case: {req.trackingCode || req.id.slice(0, 8)} ({req.district || 'Zone'})
+                    </option>
+                  ))}
+                </select>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    const selRes = resources.find((r) => r.id === routeOriginWarehouseId);
+                    const selReq = requests.find((rq) => rq.id === routeDestRequestId);
+                    onCalculateRoute(
+                      selRes?.warehouseLatitude,
+                      selRes?.warehouseLongitude,
+                      selReq?.latitude,
+                      selReq?.longitude
+                    );
+                  }}
+                  className="keep-white px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold flex items-center gap-2 shadow-sm"
+            >
+              <Navigation className="w-4 h-4" />
+                  <span>Calculate Route</span>
+            </motion.button>
+          </div>
+            </div>
+
+          <AnimatePresence>
+            {routeCalc && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="p-3.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/35 text-xs text-zinc-200 flex flex-wrap items-center justify-between gap-2"
+              >
+                <div>
+                  <strong className="font-mono bg-indigo-600 px-2 py-0.5 rounded mr-2 text-white keep-white">
+                    {routeCalc.providerUsed}
+                  </strong>
+                  <span>{routeCalc.routeSummary}</span>
+                </div>
+                <span className="font-mono font-bold text-emerald-300">
+                  Distance: {routeCalc.distanceKm} km • Est. Travel Time: {routeCalc.estimatedMinutes} mins
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <InteractiveCrisisMap
+            requests={requests}
+            shelters={shelters}
+            resources={resources}
+            operationalAreas={operationalAreas}
+            mappingReferences={mappingReferences}
+          />
+
+          {coverageReport && (coverageReport.zones || []).length > 0 && (
+            <div className="pt-4 border-t border-white/[0.08] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-extrabold text-white">
+                  Geographical Coverage &amp; Service Gap Analysis
+                </h3>
+                <span className="px-3 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-[11px] font-bold text-indigo-300">
+                  {coverageReport.totalOperationalZones} Zones • {coverageReport.criticalGapZonesCount} Critical Gaps
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                {coverageReport.zones.map((z: any) => (
+                  <div key={z.areaId} className="p-3.5 rounded-2xl bg-white/[0.025] border border-white/[0.08] space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-extrabold text-white leading-snug">{z.zoneName}</p>
+                      <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${z.coverageStatus === 'CriticalGap'
+                            ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                            : z.coverageStatus === 'Strained'
+                            ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                            : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        }`}
+                      >
+                        {z.coverageStatus}
+                      </span>
+                    </div>
+                    <p className="text-zinc-400">District: {z.district} • Pop: {Number(z.estimatedAffectedPopulation).toLocaleString()}</p>
+                    <p className="text-zinc-300 font-mono text-[11px]">
+                      Open: {z.openRequestsCount} • Beds: {z.availableShelterBeds} • Depots: {z.nearbyDepotsCount} • Centres: {z.serviceCentresCount}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isSystemAdminOrCoord && (
+          <div className="lg:col-span-4 space-y-5">
+            {resilienceStatus && (
+              <div className="bento-glass rounded-3xl p-5 sm:p-6 space-y-3.5">
+                <div className="flex items-center gap-2.5 pb-3 border-b border-white/[0.08]">
+                  <Activity className="w-4 h-4 text-indigo-400" />
+                  <h3 className="text-base font-extrabold text-white">
+                    Service Backup Mode Controls
+                  </h3>
+                </div>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  If an internet service fails during a storm, the platform automatically switches to local backup mode. Click any switch below to test Online vs. Backup mode.
+                </p>
+                <div className="space-y-2.5 text-xs">
+                  {[
+                    {
+                      name: 'AI',
+                      label: 'AI Priority Scoring Service',
+                      sim: resilienceStatus.simulateExternalAiFailure,
+                      mode: resilienceStatus.activeAiMode,
+                      trips: resilienceStatus.aiCircuitTripCount
+                    },
+                    {
+                      name: 'Mapping',
+                      label: 'Road & Map Routing Service',
+                      sim: resilienceStatus.simulateExternalMappingFailure,
+                      mode: resilienceStatus.activeMappingMode,
+                      trips: resilienceStatus.mappingCircuitTripCount
+                    },
+                    {
+                      name: 'Notification',
+                      label: 'Emergency SMS Text Service',
+                      sim: resilienceStatus.simulateExternalNotificationFailure,
+                      mode: resilienceStatus.activeNotificationMode,
+                      trips: resilienceStatus.notificationCircuitTripCount
+                    }
+                  ].map((svc) => (
+                    <div
+                      key={svc.name}
+                      className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between gap-2"
+                    >
+                      <div>
+                        <p className="font-extrabold text-white">{svc.label}</p>
+                        <p className="text-[11px] font-semibold text-indigo-300 mt-0.5">{svc.mode}</p>
+                        <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+                          Backup Switches: {svc.trips}
+                        </p>
+                      </div>
+                      <motion.button
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => onToggleResilience(svc.name, svc.sim)}
+                          className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 border transition ${svc.sim
+                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                            : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        }`}
+                      >
+                        <span
+                            className={`w-2 h-2 rounded-full ${svc.sim ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'
+                          }`}
+                        />
+                        {svc.sim ? 'Backup Mode' : 'Online'}
+                      </motion.button>
+                    </div>
+                  ))}
+                </div>
+                {onRetryFailedNotifications && (
+                  <button
+                    type="button"
+                    onClick={onRetryFailedNotifications}
+                    className="keep-white w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold inline-flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry Queued Notifications Now</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="bento-glass rounded-3xl p-5 sm:p-6 space-y-3.5 text-xs">
+              <div className="flex items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <BellRing className="w-4 h-4 text-amber-400" />
+                  <h3 className="text-sm font-extrabold text-white">
+                    {smsBundle.title}
+                  </h3>
+                </div>
+                <Globe className="w-4 h-4 text-indigo-400 shrink-0" />
+              </div>
+              <p className="text-zinc-400 leading-relaxed">
+                {smsBundle.subtitle}
+              </p>
+
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1.5">
+                  {smsBundle.languageSelectLabel}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {LANGUAGE_OPTIONS.map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => {
+                        setSmsLang(l.code);
+                        if (onChangeLanguage) {
+                          onChangeLanguage(l.code);
+                        }
+                      }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition ${smsLang === l.code
+                          ? 'bg-indigo-600 border-indigo-500 text-white keep-white'
+                          : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-black/20 border border-white/10 space-y-1">
+                <p className="font-bold text-indigo-300">{smsBundle.subject}</p>
+                <p className="text-zinc-300 leading-relaxed">{smsBundle.body}</p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Unique Message ID (Idempotency Key)</label>
+                <input
+                  type="text"
+                  value={idempKey}
+                  onChange={(e) => setIdempKey(e.target.value)}
+                  placeholder="Enter unique delivery key or leave blank to generate"
+                  className="rsvp-input font-mono"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: SMS-DISPATCH-001 (send the same key twice to verify duplicate SMS protection)
+                </p>
+              </div>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() =>
+                  onSendIdempotentNotification(
+                    idempKey.trim() || `SMS-KEY-${Date.now()}`,
+                    smsLang,
+                    smsBundle.subject,
+                    smsBundle.body
+                  )
+                }
+                className="keep-white w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <Send className="w-4 h-4" />
+                <span>{smsBundle.sendBtn}</span>
+              </motion.button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {isSystemAdminOrCoord && (
+        <div className="bento-glass rounded-3xl p-5 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4 pb-4 border-b border-white/[0.08]">
+            <div>
+              <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2.5">
+                <Shield className="w-5 h-5 text-indigo-400" />
+                System Activity & Security Audit Log
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Permanent record of every sign-in, case verification, AI review, and supply dispatch.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+              {auditLogs.length} Recorded Actions
+            </span>
+          </div>
+          <div className="content-scroll overflow-x-auto max-h-72 rounded-2xl border border-white/[0.08]">
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-[#0d111a]/95 backdrop-blur-md border-b border-white/[0.08]">
+                <tr className="text-zinc-400 uppercase tracking-wider text-[11px] font-bold">
+                  <th className="py-3 px-4">Time</th>
+                  <th className="py-3 px-4">Area</th>
+                  <th className="py-3 px-4">Action Taken</th>
+                  <th className="py-3 px-4">Staff Member & Role</th>
+                  <th className="py-3 px-4">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.06]">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="py-3 px-4 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-zinc-500" />
+                        {new Date(log.createdAtUtc).toLocaleTimeString()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 font-bold text-indigo-300">
+                        {log.eventCategory}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 font-bold text-white">{log.actionName}</td>
+                    <td className="py-3 px-4 font-semibold text-emerald-300">
+                      {log.actorUserName} <span className="text-zinc-500">({log.actorRole})</span>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-[11px] text-zinc-400 max-w-md truncate">
+                      {log.detailsJson}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
