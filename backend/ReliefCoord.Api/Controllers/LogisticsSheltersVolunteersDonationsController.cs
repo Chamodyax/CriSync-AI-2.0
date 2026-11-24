@@ -817,38 +817,267 @@ public class LogisticsSheltersVolunteersDonationsController : ControllerBase
     [HttpPost("volunteers/{id:guid}/verify-activate")]
     [Authorize(Roles = "VolunteerCoordinator,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
     public async Task<ActionResult> VerifyAndActivateVolunteer(Guid id, CancellationToken cancellationToken)
+    {
+        var volunteer = await _unitOfWork.Volunteers.GetByIdAsync(id, cancellationToken);
+        if (volunteer == null)
+        {
+            return NotFound(new { message = "Volunteer profile not found." });
+        }
+
+        volunteer.IsVerified = true;
+        volunteer.IsAvailable = true;
+        await _unitOfWork.Volunteers.UpdateAsync(volunteer, cancellationToken);
+
+        if (volunteer.UserId != Guid.Empty)
+        {
+            var linkedUser = await _unitOfWork.Users.GetByIdAsync(volunteer.UserId, cancellationToken);
+            if (linkedUser != null)
+            {
+                linkedUser.AccountStatus = "Active";
+                linkedUser.IsActive = true;
+                await _unitOfWork.Users.UpdateAsync(linkedUser, cancellationToken);
+            }
+        }
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "VolunteerOperations",
+            ActionName = "VolunteerCoordinator_VerifiedVolunteer",
+            EntityType = nameof(VolunteerProfile),
+            EntityId = volunteer.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "VolunteerCoordinator",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "VolunteerCoordinator",
+            DetailsJson = JsonSerializer.Serialize(new { volunteer.FullName, volunteer.UserId, Verified = true })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(volunteer);
     }
-}
 
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    [HttpDelete("volunteers/{id:guid}")]
+    [Authorize(Roles = "VolunteerCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> DeleteVolunteer(Guid id, CancellationToken cancellationToken)
     {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+        var volunteer = await _unitOfWork.Volunteers.GetByIdAsync(id, cancellationToken);
+        if (volunteer == null)
+        {
+            return NotFound(new { message = "Volunteer profile not found." });
+        }
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        var assignments = await _unitOfWork.VolunteerAssignments.FindAsync(a => a.VolunteerProfileId == id, cancellationToken);
+        foreach (var assign in assignments)
+        {
+            await _unitOfWork.VolunteerAssignments.DeleteAsync(assign, cancellationToken);
+        }
+
+        await _unitOfWork.Volunteers.DeleteAsync(volunteer, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "VolunteerOperations",
+            ActionName = "Admin_DeletedVolunteer",
+            EntityType = nameof(VolunteerProfile),
+            EntityId = volunteer.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "SystemAdmin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "SystemAdmin",
+            DetailsJson = JsonSerializer.Serialize(new { volunteer.FullName })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(new { deletedVolunteerId = id });
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    [HttpGet("volunteers/match")]
+    [Authorize]
+    public async Task<ActionResult> MatchVolunteers(
+        [FromQuery] string skill = "Medicine",
+        [FromQuery] double lat = 6.6828,
+        [FromQuery] double lon = 80.3992,
+        CancellationToken cancellationToken = default)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        var volunteers = await _unitOfWork.Volunteers.GetAllAsync(cancellationToken);
+        var ai = _aiProviderFactory.CreateProvider();
+        var matches = await ai.RecommendVolunteersForTaskAsync(skill, lat, lon, volunteers, cancellationToken);
+        return Ok(matches);
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    [HttpPost("volunteers/assign")]
+    [Authorize(Roles = "VolunteerCoordinator,PartnerOfficer,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> AssignVolunteerTask([FromBody] AssignVolunteerTaskDto dto, CancellationToken cancellationToken)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var volunteer = await _unitOfWork.Volunteers.GetByIdAsync(dto.VolunteerProfileId, cancellationToken);
+        if (volunteer == null)
+        {
+            return NotFound(new { message = "Volunteer profile not found." });
+        }
+
+        double targetLat = volunteer.CurrentLatitude;
+        double targetLon = volunteer.CurrentLongitude;
+        double distKm = 1.8;
+        if (dto.AssistanceRequestId.HasValue)
+        {
+            var req = await _unitOfWork.AssistanceRequests.GetByIdAsync(dto.AssistanceRequestId.Value, cancellationToken);
+            if (req != null)
+            {
+                targetLat = req.Latitude;
+                targetLon = req.Longitude;
+                distKm = _mappingService.CalculateDistanceKm(volunteer.CurrentLatitude, volunteer.CurrentLongitude, req.Latitude, req.Longitude);
+            }
+        }
+
+        var ai = _aiProviderFactory.CreateProvider();
+        var scored = await ai.RecommendVolunteersForTaskAsync(dto.RequiredSkill, targetLat, targetLon, new[] { volunteer }, cancellationToken);
+        double matchScore = scored.FirstOrDefault()?.MatchScore
+            ?? Math.Round((volunteer.SkillsCsv.Contains(dto.RequiredSkill, StringComparison.OrdinalIgnoreCase) ? 60.0 : 25.0) + Math.Max(0, 40.0 - distKm * 0.8), 1);
+
+        var assignment = new VolunteerTaskAssignment
+        {
+            VolunteerProfileId = volunteer.Id,
+            AssistanceRequestId = dto.AssistanceRequestId,
+            TaskTitle = dto.TaskTitle,
+            RequiredSkill = dto.RequiredSkill,
+            AiMatchScore = matchScore,
+            DistanceKm = distKm,
+            Status = "Assigned"
+        };
+
+        await _unitOfWork.VolunteerAssignments.AddAsync(assignment, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "VolunteerOperations",
+            ActionName = "VolunteerTask_Assigned",
+            EntityType = nameof(VolunteerTaskAssignment),
+            EntityId = assignment.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "VolunteerCoordinator",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "VolunteerCoordinator",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { volunteer.FullName, assignment.TaskTitle, assignment.RequiredSkill, assignment.AiMatchScore })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _eventPublisher.PublishAsync(new VolunteerAssignedEvent(
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            assignment.Id,
+            volunteer.UserId,
+            volunteer.FullName,
+            assignment.TaskTitle
+        ), cancellationToken);
+
+        return Ok(assignment);
+    }
+
+    [HttpPut("volunteers/me/availability")]
+    [Authorize]
+    public async Task<ActionResult> UpdateMyVolunteerAvailability([FromBody] UpdateVolunteerAvailabilityDto dto, CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var profiles = await _unitOfWork.Volunteers.FindAsync(v => v.UserId == userId, cancellationToken);
+        var profile = profiles.FirstOrDefault();
+        if (profile == null)
+        {
+            return NotFound(new { message = "Volunteer profile not found for signed-in account." });
+        }
+
+        profile.IsAvailable = dto.IsAvailable;
+        profile.AvailabilitySchedule = dto.AvailabilitySchedule.Trim();
+        if (dto.CurrentLatitude.HasValue) profile.CurrentLatitude = dto.CurrentLatitude.Value;
+        if (dto.CurrentLongitude.HasValue) profile.CurrentLongitude = dto.CurrentLongitude.Value;
+        profile.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _unitOfWork.Volunteers.UpdateAsync(profile, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "VolunteerOperations",
+            ActionName = "Volunteer_UpdatedAvailability",
+            EntityType = nameof(VolunteerProfile),
+            EntityId = profile.Id.ToString(),
+            ActorUserId = userId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? profile.FullName,
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "Volunteer",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { profile.IsAvailable, profile.AvailabilitySchedule })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(profile);
+    }
+
+    [HttpPost("volunteers/assignments/{id:guid}/respond")]
+    [Authorize]
+    public async Task<ActionResult> RespondToVolunteerAssignment(Guid id, [FromBody] RespondVolunteerAssignmentDto dto, CancellationToken cancellationToken)
+    {
+        var assignment = await _unitOfWork.VolunteerAssignments.GetByIdAsync(id, cancellationToken);
+        if (assignment == null)
+        {
+            return NotFound(new { message = "Volunteer assignment not found." });
+        }
+
+        var profile = await _unitOfWork.Volunteers.GetByIdAsync(assignment.VolunteerProfileId, cancellationToken);
+        var callerId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
+        var callerRole = User.FindFirstValue(ClaimTypes.Role) ?? string.Empty;
+        bool isCoordinator = callerRole is "VolunteerCoordinator" or "EmergencyCoordinator" or "SystemAdmin" or "OrganizationAdmin";
+        if (!isCoordinator && profile != null && profile.UserId != callerId)
+        {
+            return Forbid();
+        }
+
+        string decision = dto.Decision.Trim();
+        if (!decision.Equals("Accepted", StringComparison.OrdinalIgnoreCase) &&
+            !decision.Equals("Declined", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Decision must be 'Accepted' or 'Declined'." });
+        }
+
+        assignment.Status = decision.Equals("Accepted", StringComparison.OrdinalIgnoreCase) ? "Accepted" : "Declined";
+        if (!string.IsNullOrWhiteSpace(dto.Notes))
+        {
+            assignment.CompletionNotes = dto.Notes.Trim();
+        }
+        assignment.UpdatedAtUtc = DateTime.UtcNow;
+
+        await _unitOfWork.VolunteerAssignments.UpdateAsync(assignment, cancellationToken);
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "VolunteerOperations",
+            ActionName = $"VolunteerAssignment_{assignment.Status}",
+            EntityType = nameof(VolunteerTaskAssignment),
+            EntityId = assignment.Id.ToString(),
+            ActorUserId = callerId == Guid.Empty ? null : callerId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "Volunteer",
+            ActorRole = callerRole,
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { assignment.TaskTitle, assignment.Status, dto.Notes })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(assignment);
+    }
+
+    [HttpPost("volunteers/assignments/{id:guid}/complete")]
+    [Authorize]
+    public async Task<ActionResult> CompleteVolunteerAssignment(Guid id, [FromBody] CompleteVolunteerAssignmentDto dto, CancellationToken cancellationToken)
+    {
+        var assignment = await _unitOfWork.VolunteerAssignments.GetByIdAsync(id, cancellationToken);
+        if (assignment == null)
+        {
+            return NotFound(new { message = "Volunteer assignment not found." });
+        }
+
+        var profile = await _unitOfWork.Volunteers.GetByIdAsync(assignment.VolunteerProfileId, cancellationToken);
+        var callerId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
+    }
 }
