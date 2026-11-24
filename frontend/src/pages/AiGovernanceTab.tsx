@@ -69,7 +69,7 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
   const canApproveOrOverrideAi =
     userRole === 'EmergencyCoordinator' ||
     userRole === 'CaseManager' ||
-    userRole === 'OrganizationAdmin' ||
+    
     userRole === 'SystemAdmin';
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -329,7 +329,7 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                      1. AI Analyzed
+                      AI Step
                     </span>
                     <ArrowRight className="w-3 h-3 text-zinc-500" />
                     <span
@@ -462,5 +462,115 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
                       }`}
                     >
                       {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-300 mb-2">
+                  2. Final Approved Urgency Level
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {urgencyPills.map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setUrgency(u)}
+                      className={`px-3 py-1.5 rounded-xl font-bold border text-xs transition ${
+                        urgency === u
+                          ? 'bg-indigo-600 border-indigo-400 text-white keep-white shadow-sm'
+                          : 'bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1.5">
+                  3. Reason for Your Decision (Saved to Audit Log) *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={justification}
+                  onChange={(e) => setJustification(e.target.value)}
+                  placeholder="Document field verification or clinical justification for approval or override"
+                  className="rsvp-input"
+                />
+                <p className="text-[11px] text-zinc-400/75 opacity-75 mt-1 font-normal">
+                  Example: Confirmed ground accessibility with field team; approving dispatch urgency based on household vulnerability.
+                </p>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                className="keep-white w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Save Staff Review Decision</span>
+              </motion.button>
+            </form>
+          ) : (
+            <div className="p-6 rounded-2xl bg-black/20 border border-dashed border-white/15 text-center space-y-3">
+              <Sliders className="w-7 h-7 text-indigo-400 mx-auto" />
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Click <strong>"Review or Adjust Score"</strong> on any card on the left to approve or change the AI priority level.
+              </p>
+              {recommendations.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const first = recommendations[0];
+                    onSelectRecommendation(first);
+                    setCategory(first.recommendedCategory);
+                    setUrgency(first.recommendedUrgency);
+                  }}
+                  className="keep-white px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm"
+                >
+                  Select First Recommendation Now
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {demandForecastSection}
+    </div>
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
