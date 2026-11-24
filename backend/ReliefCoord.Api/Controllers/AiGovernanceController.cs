@@ -54,37 +54,59 @@ public class AiGovernanceController : ControllerBase
     }
 
     [HttpPost("review")]
-}
-
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    [Authorize(Roles = "EmergencyCoordinator,CaseManager,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> ReviewRecommendation([FromBody] ReviewAiRecommendationDto dto, CancellationToken cancellationToken)
     {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : Guid.Empty;
+        var actorName = User.FindFirstValue(ClaimTypes.Name) ?? "Authorised Coordinator";
+        var roleStr = User.FindFirstValue(ClaimTypes.Role) ?? "EmergencyCoordinator";
+        Enum.TryParse<UserRole>(roleStr, out var actorRole);
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        var decision = await _opsService.ReviewAiRecommendationAsync(
+            actorId,
+            actorName,
+            actorRole,
+            dto,
+            cancellationToken);
+
+        return Ok(decision);
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    [HttpGet("demand-forecast/{crisisEventId:guid}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetDemandForecast(Guid crisisEventId, CancellationToken cancellationToken)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        var requests = await _unitOfWork.AssistanceRequests.FindAsync(r => r.CrisisEventId == crisisEventId, cancellationToken);
+        var inventory = await _unitOfWork.Resources.GetAllAsync(cancellationToken);
+        var aiService = _aiProviderFactory.CreateProvider();
+        var forecast = await aiService.ForecastResourceDemandAsync(crisisEventId, requests, inventory, cancellationToken);
+        return Ok(forecast);
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    [HttpGet("multilingual-briefing/{crisisEventId:guid}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetMultilingualBriefing(
+        Guid crisisEventId,
+        [FromQuery] string lang = "en",
+        CancellationToken cancellationToken = default)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var crisis = await _unitOfWork.CrisisEvents.GetByIdAsync(crisisEventId, cancellationToken);
+        if (crisis == null)
+        {
+            var allCrises = await _unitOfWork.CrisisEvents.GetAllAsync(cancellationToken);
+            crisis = allCrises.FirstOrDefault();
+            if (crisis == null)
+            {
+                return NotFound(new { message = "No crisis events found." });
+            }
+        }
+
+        var requests = await _unitOfWork.AssistanceRequests.FindAsync(r => r.CrisisEventId == crisis.Id, cancellationToken);
+        int openCount = requests.Count(r => r.Status != RequestStatus.Closed && r.Status != RequestStatus.Fulfilled);
+        int criticalCount = requests.Count(r => r.FinalApprovedUrgency >= UrgencyLevel.Critical);
+
+        var aiService = _aiProviderFactory.CreateProvider();
+        var briefing = await aiService.GenerateMultilingualBriefingAsync(crisis, openCount, criticalCount, lang, cancellationToken);
+        return Ok(briefing);
+    }
 }
