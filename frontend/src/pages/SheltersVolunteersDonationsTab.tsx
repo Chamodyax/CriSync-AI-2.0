@@ -2799,5 +2799,693 @@ const SystemAdminControlCenter: React.FC<{
               </div>
               <div>
                 <label className="block font-bold text-zinc-300 mb-1">Permission Code</label>
+                <input
+                  type="text"
+                  value={permForm.permissionCode}
+                  onChange={(e) => setPermForm({ ...permForm, permissionCode: e.target.value })}
+                  placeholder="MANAGE_MEDICAL_AID"
+                  className="rsvp-input font-mono"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Permission Description</label>
+                <input
+                  type="text"
+                  value={permForm.description}
+                  onChange={(e) => setPermForm({ ...permForm, description: e.target.value })}
+                  placeholder="Short operational capability description"
+                  className="rsvp-input"
+                />
+              </div>
+              <button
+                type="button"
+                disabled={!permForm.permissionCode.trim()}
+                onClick={() =>
+                  runBusy('add-perm', async () => {
+                    await onAddRolePermission(permForm);
+                    setPermForm({ role: permForm.role, permissionCode: '', description: '' });
+                  })
+                }
+                className="keep-white px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Assign Permission</span>
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            {rolePermissions.map((rp) => (
+              <div key={rp.id} className="p-3 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold mr-2">
+                    {rp.role}
+                  </span>
+                  <span className="font-mono font-extrabold text-white">{rp.permissionCode}</span>
+                  <p className="text-zinc-400 mt-1">{rp.description}</p>
+                </div>
+                {onDeleteRolePermission && (
+                  <button
+                    type="button"
+                    onClick={() => runBusy(`del-perm:${rp.id}`, () => onDeleteRolePermission(rp.id))}
+                    className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove</span>
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {adminTab === 'integrations' && (
+        <div className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+              <p className="text-sm font-extrabold text-white">AI Priority & Triage Service</p>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">AI Provider</label>
+                <input
+                  type="text"
+                  value={serviceDraft.aiProviderName}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, aiProviderName: e.target.value })}
+                  className="rsvp-input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Model Name</label>
+                  <input
+                    type="text"
+                    value={serviceDraft.aiModelName}
+                    onChange={(e) => setServiceDraft({ ...serviceDraft, aiModelName: e.target.value })}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Confidence Threshold</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.1"
+                    max="0.99"
+                    value={serviceDraft.aiConfidenceThreshold}
+                    onChange={(e) => setServiceDraft({ ...serviceDraft, aiConfidenceThreshold: Number(e.target.value) })}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-amber-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(serviceDraft.simulateExternalAiFailure)}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, simulateExternalAiFailure: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Activate AI Backup Fallback Mode
+              </label>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+              <p className="text-sm font-extrabold text-white">SMS Alert Gateway</p>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">SMS Provider</label>
+                <input
+                  type="text"
+                  value={serviceDraft.smsProviderName}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, smsProviderName: e.target.value })}
+                  className="rsvp-input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Sender ID</label>
+                  <input
+                    type="text"
+                    value={serviceDraft.smsSenderId}
+                    onChange={(e) => setServiceDraft({ ...serviceDraft, smsSenderId: e.target.value })}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-300 mb-1">Idempotency Window (min)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={serviceDraft.smsIdempotencyWindowMinutes}
+                    onChange={(e) => setServiceDraft({ ...serviceDraft, smsIdempotencyWindowMinutes: Number(e.target.value) })}
+                    className="rsvp-input font-mono"
+                  />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-amber-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(serviceDraft.simulateExternalNotificationFailure)}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, simulateExternalNotificationFailure: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Activate SMS Backup Queue Mode
+              </label>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+              <p className="text-sm font-extrabold text-white">Email Notification Service</p>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">SMTP / Email Relay Provider</label>
+                <input
+                  type="text"
+                  value={serviceDraft.emailSmtpProvider}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, emailSmtpProvider: e.target.value })}
+                  className="rsvp-input"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Sender Address</label>
+                <input
+                  type="email"
+                  value={serviceDraft.emailSenderAddress}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, emailSenderAddress: e.target.value })}
+                  className="rsvp-input font-mono"
+                />
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-emerald-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(serviceDraft.emailAlertsEnabled)}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, emailAlertsEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Automated Email Dispatches & Invitations Enabled
+              </label>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+              <p className="text-sm font-extrabold text-white">Maps & Geocoding Integration</p>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Routing Provider</label>
+                <input
+                  type="text"
+                  value={serviceDraft.mappingProviderName}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, mappingProviderName: e.target.value })}
+                  className="rsvp-input"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-zinc-300 mb-1">Geocoding Provider</label>
+                <input
+                  type="text"
+                  value={serviceDraft.geocodingProviderName}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, geocodingProviderName: e.target.value })}
+                  className="rsvp-input"
+                />
+              </div>
+              <label className="flex items-center gap-2 font-semibold text-amber-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(serviceDraft.simulateExternalMappingFailure)}
+                  onChange={(e) => setServiceDraft({ ...serviceDraft, simulateExternalMappingFailure: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Activate Offline Haversine Mapping Fallback
+              </label>
+            </div>
+          </div>
+
+          {onUpdateServiceSettings && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => runBusy('save-integrations', () => onUpdateServiceSettings(serviceDraft))}
+                className="keep-white px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save AI, SMS, Email & Mapping Settings</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {adminTab === 'config' && (
+        <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">Minimum Global Admins (Lockout Prevention)</label>
+              <input
+                type="number"
+                min={2}
+                max={3}
+                value={configDraft.minGlobalAdmins}
+                onChange={(e) => setConfigDraft({ ...configDraft, minGlobalAdmins: Number(e.target.value) })}
+                className="rsvp-input font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">Maximum Global Admins (Attack Surface Limit)</label>
+              <input
+                type="number"
+                min={2}
+                max={4}
+                value={configDraft.maxGlobalAdmins}
+                onChange={(e) => setConfigDraft({ ...configDraft, maxGlobalAdmins: Number(e.target.value) })}
+                className="rsvp-input font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">Maximum Organization Admins</label>
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={configDraft.maxOrganizationAdmins}
+                onChange={(e) => setConfigDraft({ ...configDraft, maxOrganizationAdmins: Number(e.target.value) })}
+                className="rsvp-input font-mono"
+              />
+            </div>
+            <div>
+              <label className="block font-bold text-zinc-300 mb-1">High-Value Donation Compliance Threshold (USD)</label>
+              <input
+                type="number"
+                min={1000}
+                value={configDraft.highValueDonationThresholdUsd}
+                onChange={(e) => setConfigDraft({ ...configDraft, highValueDonationThresholdUsd: Number(e.target.value) })}
+                className="rsvp-input font-mono"
+              />
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 font-bold text-zinc-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(configDraft.requireVolunteerCoordinatorVerification)}
+                  onChange={(e) => setConfigDraft({ ...configDraft, requireVolunteerCoordinatorVerification: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Require Volunteer Coordinator Verification
+              </label>
+            </div>
+            <div className="flex items-end pb-1">
+              <label className="flex items-center gap-2 font-bold text-zinc-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(configDraft.requirePartnerAdminApproval)}
+                  onChange={(e) => setConfigDraft({ ...configDraft, requirePartnerAdminApproval: e.target.checked })}
+                  className="w-4 h-4 rounded"
+                />
+                Require Admin Approval for Partner Organizations
+              </label>
+            </div>
+          </div>
+          {onUpdateSystemConfig && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => runBusy('save-sysconfig', () => onUpdateSystemConfig(configDraft))}
+                className="keep-white px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Save className="w-4 h-4" />
+                <span>Save Core Governance Configuration</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {adminTab === 'crises' && (
+        <div className="space-y-3">
+          {crises.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No crises recorded yet.</p>
+          ) : (
+            crises.map((c) => {
+              const editKey = `crisis:${c.id}`;
+              const isEditing = editingEntityKey === editKey;
+              return (
+                <div key={c.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-extrabold text-white">{c.title}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        {c.crisisType} • Severity: {c.severity} • Region: {c.region || 'Unset'} • {c.isActive ? 'Active' : 'Closed'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingEntityKey(null);
+                          } else {
+                            setEditingEntityKey(editKey);
+                            setEntityDraft({
+                              title: c.title || '',
+                              crisisType: c.crisisType || 'Flood',
+                              severity: c.severity || 'High',
+                              region: c.region || '',
+                              description: c.description || '',
+                              centerLatitude: c.centerLatitude ?? 6.9271,
+                              centerLongitude: c.centerLongitude ?? 79.8612,
+                              radiusKm: c.radiusKm ?? 25,
+                              isActive: Boolean(c.isActive)
+                            });
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-200 text-[11px] font-bold inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>{isEditing ? 'Close' : 'Edit'}</span>
+                      </button>
+                      {onAdminDeleteCrisis && renderDeleteButton(editKey, () => onAdminDeleteCrisis(c.id, c.title))}
+                    </div>
+                  </div>
+                  {isEditing && onAdminUpdateCrisis && (
+                    <div className="pt-3 border-t border-white/[0.08] grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div className="md:col-span-2">
+                        <label className="block font-bold text-zinc-300 mb-1">Crisis Title</label>
+                        <input
+                          type="text"
+                          value={entityDraft.title}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, title: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Region</label>
+                        <input
+                          type="text"
+                          value={entityDraft.region}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, region: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Type</label>
+                        <select
+                          value={entityDraft.crisisType}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, crisisType: e.target.value })}
+                          className="rsvp-input"
+                        >
+                          {CRISIS_TYPES.map((tOpt) => (
+                            <option key={tOpt} value={tOpt}>{tOpt}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Severity</label>
+                        <select
+                          value={entityDraft.severity}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, severity: e.target.value })}
+                          className="rsvp-input"
+                        >
+                          {CRISIS_SEVERITIES.map((sOpt) => (
+                            <option key={sOpt} value={sOpt}>{sOpt}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-end pb-1">
+                        <label className="flex items-center gap-2 font-bold text-zinc-200 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={entityDraft.isActive}
+                            onChange={(e) => setEntityDraft({ ...entityDraft, isActive: e.target.checked })}
+                            className="w-4 h-4 rounded"
+                          />
+                          Crisis Active
+                        </label>
+                      </div>
+                      <div className="md:col-span-3">
+                        <label className="block font-bold text-zinc-300 mb-1">Description</label>
+                        <input
+                          type="text"
+                          value={entityDraft.description}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, description: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Latitude</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={entityDraft.centerLatitude}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, centerLatitude: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Longitude</label>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          value={entityDraft.centerLongitude}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, centerLongitude: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            runBusy(editKey, async () => {
+                              await onAdminUpdateCrisis(c.id, entityDraft);
+                              setEditingEntityKey(null);
+                            })
+                          }
+                          className="keep-white px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Crisis</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {adminTab === 'shelters' && (
+        <div className="space-y-3">
+          {shelters.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No shelters registered yet.</p>
+          ) : (
+            shelters.map((s) => {
+              const editKey = `shelter:${s.id}`;
+              const isEditing = editingEntityKey === editKey;
+              return (
+                <div key={s.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-extrabold text-white">{s.name}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        {s.address} • Occupancy: {s.currentOccupancy}/{s.totalCapacity} • Status: {s.status}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingEntityKey(null);
+                          } else {
+                            setEditingEntityKey(editKey);
+                            setEntityDraft({
+                              name: s.name || '',
+                              address: s.address || '',
+                              totalCapacity: s.totalCapacity ?? 100,
+                              currentOccupancy: s.currentOccupancy ?? 0,
+                              isWheelchairAccessible: Boolean(s.isWheelchairAccessible),
+                              hasMedicalFacility: Boolean(s.hasMedicalFacility),
+                              hasPowerBackup: Boolean(s.hasPowerBackup),
+                              status: s.status || 'Operational',
+                              latitude: s.latitude ?? 6.9271,
+                              longitude: s.longitude ?? 79.8612
+                            });
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-200 text-[11px] font-bold inline-flex items-center gap-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>{isEditing ? 'Close' : 'Edit'}</span>
+                      </button>
+                      {onAdminDeleteShelter && renderDeleteButton(editKey, () => onAdminDeleteShelter(s.id, s.name))}
+                    </div>
+                  </div>
+                  {isEditing && onAdminUpdateShelter && (
+                    <div className="pt-3 border-t border-white/[0.08] grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Shelter Name</label>
+                        <input
+                          type="text"
+                          value={entityDraft.name}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, name: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block font-bold text-zinc-300 mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={entityDraft.address}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, address: e.target.value })}
+                          className="rsvp-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Total Capacity</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={entityDraft.totalCapacity}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, totalCapacity: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Current Occupancy</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={entityDraft.currentOccupancy}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, currentOccupancy: Number(e.target.value) })}
+                          className="rsvp-input font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-zinc-300 mb-1">Status</label>
+                        <select
+                          value={entityDraft.status}
+                          onChange={(e) => setEntityDraft({ ...entityDraft, status: e.target.value })}
+                          className="rsvp-input"
+                        >
+                          {SHELTER_STATUSES.map((st) => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="md:col-span-2 flex flex-wrap items-center gap-4">
+                        <label className="flex items-center gap-1.5 text-zinc-200 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={entityDraft.isWheelchairAccessible}
+                            onChange={(e) => setEntityDraft({ ...entityDraft, isWheelchairAccessible: e.target.checked })}
+                            className="w-4 h-4 rounded"
+                          />
+                          Wheelchair Access
+                        </label>
+                        <label className="flex items-center gap-1.5 text-zinc-200 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={entityDraft.hasMedicalFacility}
+                            onChange={(e) => setEntityDraft({ ...entityDraft, hasMedicalFacility: e.target.checked })}
+                            className="w-4 h-4 rounded"
+                          />
+                          Medical Bay
+                        </label>
+                        <label className="flex items-center gap-1.5 text-zinc-200 font-semibold cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={entityDraft.hasPowerBackup}
+                            onChange={(e) => setEntityDraft({ ...entityDraft, hasPowerBackup: e.target.checked })}
+                            className="w-4 h-4 rounded"
+                          />
+                          Power Backup
+                        </label>
+                      </div>
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            runBusy(editKey, async () => {
+                              await onAdminUpdateShelter(s.id, entityDraft);
+                              setEditingEntityKey(null);
+                            })
+                          }
+                          className="keep-white px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold inline-flex items-center gap-1.5"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>Save Shelter</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {adminTab === 'resources' && (
+        <div className="space-y-3">
+          {resources.length === 0 ? (
+            <p className="text-xs text-zinc-400 py-4 text-center">No warehouse inventory items added yet.</p>
+          ) : (
+            resources.map((r) => {
+              const editKey = `resource:${r.id}`;
+              const isEditing = editingEntityKey === editKey;
+              return (
+                <div key={r.id} className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-extrabold text-white">{r.name}</p>
+                      <p className="text-xs text-zinc-400 mt-0.5">
+                        {r.category} • {r.warehouseName} • Available: {r.availableQuantity}/{r.totalQuantity} {r.unit}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isEditing) {
+                            setEditingEntityKey(null);
+                          } else {
+                            setEditingEntityKey(editKey);
+                            setEntityDraft({
+                              name: r.name || '',
+                              category: r.category || 'Food',
+                              warehouseName: r.warehouseName || '',
+                              unit: r.unit || 'Units',
+                              totalQuantity: r.totalQuantity ?? 0,
+                              availableQuantity: r.availableQuantity ?? 0,
+                              reorderThreshold: r.reorderThreshold ?? 20,
+                              warehouseLatitude: r.warehouseLatitude ?? 6.9271,
+                              warehouseLongitude: r.warehouseLongitude ?? 79.8612
+                            });
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-200 text-[11px] font-bold inline-flex items-center gap-1"
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
