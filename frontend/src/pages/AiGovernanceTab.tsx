@@ -118,34 +118,125 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
           <div className="mb-5 p-4 rounded-2xl bg-black/20 border border-white/[0.07] space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-extrabold text-zinc-200">
+                48h Predicted Demand vs. Current Warehouse Stock
+              </span>
+              <div className="flex items-center gap-4 text-[11px] font-bold">
+                <span className="inline-flex items-center gap-1.5 text-indigo-300">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-indigo-500 inline-block" />
+                  Predicted 48h Need
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" />
+                  Available Stock
+                </span>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              {demandForecast.slice(0, 8).map((item) => {
+                const needPct = Math.round((Number(item.predictedNext48HoursDemand || 0) / maxVal) * 100);
+                const stockPct = Math.round((Number(item.currentAvailableStock || 0) / maxVal) * 100);
+                return (
+                  <div key={`chart-${item.categoryName}`} className="p-3 rounded-xl bg-white/[0.025] border border-white/[0.06] space-y-2">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-bold text-white truncate">{item.categoryName}</span>
+                      <span className="font-mono text-[11px] text-zinc-400">
+                        {item.currentAvailableStock}/{item.predictedNext48HoursDemand}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-indigo-500 transition-all duration-500" style={{ width: `${Math.max(4, needPct)}%` }} />
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${Math.max(4, stockPct)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      <div className="overflow-x-auto rounded-2xl border border-white/[0.08]">
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-white/[0.08] text-zinc-400 bg-white/[0.03] uppercase tracking-wider text-[11px] font-bold">
+              <th className="py-3.5 px-4">Aid Category</th>
+              <th className="py-3.5 px-4">Active Requests</th>
+              <th className="py-3.5 px-4">Currently Needed</th>
+              <th className="py-3.5 px-4">Predicted 48h Need</th>
+              <th className="py-3.5 px-4">Available in Warehouse</th>
+              <th className="py-3.5 px-4">Expected Shortage</th>
+              <th className="py-3.5 px-4">Supply Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/[0.06]">
+            {demandForecast.map((item, idx) => {
+              const hasShortfall = item.projectedDeficit > 0;
+              const coveragePct = Math.min(
+                100,
+                Math.round(
+                  (item.currentAvailableStock / Math.max(1, item.predictedNext48HoursDemand)) * 100
+                )
+              );
+              return (
+                <motion.tr
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.22, delay: Math.min(idx * 0.05, 0.25) }}
+                  key={item.categoryName}
+                  className="hover:bg-white/[0.03] transition-colors"
+                >
+                  <td className="py-3.5 px-4 font-extrabold text-white">{item.categoryName}</td>
+                  <td className="py-3.5 px-4 font-mono text-zinc-300">
+                    {item.historicalRequestsCount}
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-zinc-300">
+                    {item.currentRequestedUnits} units
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-indigo-300 font-extrabold">
+                    {item.predictedNext48HoursDemand} units
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-emerald-300 font-bold">
+                    <div>{item.currentAvailableStock} units</div>
+                    <div className="w-24 h-1.5 bg-white/10 rounded-full overflow-hidden mt-1.5">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${coveragePct}%` }}
+                        transition={{ duration: 0.65, ease: 'easeOut' }}
+                        className={`h-full rounded-full crisync-shimmer-bar ${
+                          hasShortfall
+                            ? 'bg-gradient-to-r from-rose-500 to-amber-500'
+                            : 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                        }`}
+                      />
+                    </div>
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-rose-400 font-extrabold">
+                    {item.projectedDeficit > 0 ? `${item.projectedDeficit} units short` : 'No shortage'}
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                        hasShortfall
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}
+                    >
+                      <AlertTriangle className="w-3.5 h-3.5" />
+                      {item.riskStatus}
+                    </span>
+                  </td>
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
