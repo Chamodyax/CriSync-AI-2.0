@@ -1341,38 +1341,201 @@ public class LogisticsSheltersVolunteersDonationsController : ControllerBase
                 ApprovedAtUtc = DateTime.UtcNow
             };
 
-    }
-}
+            campaign.DisbursedAmountUsd += dto.AmountUsd;
+            campaign.UpdatedAtUtc = DateTime.UtcNow;
 
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+            await _unitOfWork.CampaignExpenditures.AddAsync(expenditure, cancellationToken);
+            await _unitOfWork.DonationCampaigns.UpdateAsync(campaign, cancellationToken);
+            await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+            {
+                EventCategory = "DonationCompliance",
+                ActionName = "CampaignExpenditure_Recorded",
+                EntityType = nameof(CampaignExpenditure),
+                EntityId = expenditure.Id.ToString(),
+                ActorUserId = actorId == Guid.Empty ? null : actorId,
+                ActorUserName = actorName,
+                ActorRole = actorRole,
+                IpAddress = GetClientIp(),
+                DetailsJson = JsonSerializer.Serialize(new { campaign.Title, expenditure.AmountUsd, expenditure.Category, expenditure.Description })
+            }, cancellationToken);
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
-    }
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }, cancellationToken);
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        return Ok(expenditure);
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    [HttpGet("donations/transparency-report")]
+    [Authorize]
+    public async Task<ActionResult> GetDonationTransparencyReport(CancellationToken cancellationToken)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var campaigns = await _unitOfWork.DonationCampaigns.GetAllAsync(cancellationToken);
+        var donations = await _unitOfWork.Donations.GetAllAsync(cancellationToken);
+        var expenditures = await _unitOfWork.CampaignExpenditures.GetAllAsync(cancellationToken);
+
+        var campaignBreakdown = campaigns.Select(c =>
+        {
+            var campExps = expenditures.Where(e => e.CampaignId == c.Id).OrderByDescending(e => e.ApprovedAtUtc).ToList();
+            decimal remaining = Math.Max(0m, c.CollectedAmountUsd - c.DisbursedAmountUsd);
+            double utilisation = c.CollectedAmountUsd > 0
+                ? Math.Round((double)(c.DisbursedAmountUsd / c.CollectedAmountUsd) * 100.0, 1)
+                : 0.0;
+
+            return new
+            {
+                CampaignId = c.Id,
+                c.Title,
+                c.TargetAmountUsd,
+                c.CollectedAmountUsd,
+                c.DisbursedAmountUsd,
+                RemainingBalanceUsd = remaining,
+                UtilisationPercentage = utilisation,
+                Expenditures = campExps
+            };
+        }).ToList();
+
+        var expenditureByCategory = expenditures
+            .GroupBy(e => e.Category)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.AmountUsd));
+
+        return Ok(new
+        {
+            TotalCollectedUsd = campaigns.Sum(c => c.CollectedAmountUsd),
+            TotalDisbursedUsd = campaigns.Sum(c => c.DisbursedAmountUsd),
+            TotalRemainingUsd = campaigns.Sum(c => Math.Max(0m, c.CollectedAmountUsd - c.DisbursedAmountUsd)),
+            VerifiedDonationsCount = donations.Count(d => !d.IsFlaggedSuspicious || d.VerificationStatus == "HumanComplianceApproved"),
+            PendingFlaggedDonationsCount = donations.Count(d => d.IsFlaggedSuspicious && !d.IsReviewedByHuman),
+            RejectedDonationsCount = donations.Count(d => d.VerificationStatus == "ComplianceRejected"),
+            ExpenditureByCategory = expenditureByCategory,
+            Campaigns = campaignBreakdown
+        });
+    }
+
+    [HttpGet("notifications")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin,EmergencyCoordinator,CaseManager")]
+    public async Task<ActionResult> GetNotifications(CancellationToken cancellationToken)
+    {
+        var notifications = await _unitOfWork.Notifications.GetAllAsync(cancellationToken);
+        return Ok(notifications);
+    }
+
+    [HttpGet("notifications/me")]
+    [Authorize]
+    public async Task<ActionResult> GetMyNotifications(CancellationToken cancellationToken)
+    {
+        var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var mine = await _unitOfWork.Notifications.FindAsync(n => n.RecipientUserId == userId, cancellationToken);
+        return Ok(mine.OrderByDescending(n => n.CreatedAtUtc));
+    }
+
+    [HttpPost("notifications/retry-failed")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin,EmergencyCoordinator")]
+    public async Task<ActionResult> RetryFailedNotifications(CancellationToken cancellationToken)
+    {
+        int recovered = await _opsService.RetryFailedNotificationsAsync(cancellationToken);
+        return Ok(new { RecoveredCount = recovered });
+    }
+
+    [HttpPost("notifications/send")]
+    [Authorize]
+    public async Task<ActionResult> SendNotification([FromBody] SendNotificationRequestDto dto, CancellationToken cancellationToken)
+    {
+        var record = await _opsService.SendIdempotentNotificationAsync(dto, cancellationToken);
+        return Ok(record);
+    }
+
+    [HttpGet("mapping/route")]
+    [Authorize]
+    public async Task<ActionResult<RouteCalculationDto>> CalculateRoute(
+        [FromQuery] double originLat = 6.6890,
+        [FromQuery] double originLon = 80.4020,
+        [FromQuery] double destLat = 6.6828,
+        [FromQuery] double destLon = 80.3992,
+        CancellationToken cancellationToken = default)
+    {
+        var route = await _mappingService.CalculateRouteAsync(originLat, originLon, destLat, destLon, cancellationToken);
+        return Ok(route);
+    }
+
+    [HttpGet("mapping/geocode")]
+    [Authorize]
+    public async Task<ActionResult<GeocodingResultDto>> Geocode([FromQuery] string address = "Ratnapura", CancellationToken cancellationToken = default)
+    {
+        var geo = await _mappingService.GeocodeAddressAsync(address, cancellationToken);
+        return Ok(geo);
+    }
+
+    [HttpGet("mapping/reverse-geocode")]
+    [Authorize]
+    public async Task<ActionResult<GeocodingResultDto>> ReverseGeocode(
+        [FromQuery] double latitude = 6.6828,
+        [FromQuery] double longitude = 80.3992,
+        CancellationToken cancellationToken = default)
+    {
+        var geo = await _mappingService.ReverseGeocodeAsync(latitude, longitude, cancellationToken);
+        return Ok(geo);
+    }
+
+    [HttpGet("mapping/references")]
+    [Authorize]
+    public async Task<ActionResult> GetMappingReferences(CancellationToken cancellationToken)
+    {
+        var refs = await _unitOfWork.MappingReferences.GetAllAsync(cancellationToken);
+        return Ok(refs);
+    }
+
+    [HttpGet("mapping/coverage-report")]
+    [Authorize]
+    public async Task<ActionResult> GetCoverageReport(CancellationToken cancellationToken)
+    {
+        var areas = await _unitOfWork.OperationalAreas.GetAllAsync(cancellationToken);
+        var requests = await _unitOfWork.AssistanceRequests.GetAllAsync(cancellationToken);
+        var shelters = await _unitOfWork.Shelters.GetAllAsync(cancellationToken);
+        var resources = await _unitOfWork.Resources.GetAllAsync(cancellationToken);
+        var refs = await _unitOfWork.MappingReferences.GetAllAsync(cancellationToken);
+
+        var zoneReports = areas.Select(area =>
+        {
+            double radiusKm = area.CoverageRadiusKm > 0 ? area.CoverageRadiusKm : 15.0;
+            int openRequestsInZone = requests.Count(r =>
+                r.Status != RequestStatus.Closed &&
+                r.Status != RequestStatus.Fulfilled &&
+                r.Status != RequestStatus.MergedAsDuplicate &&
+                _mappingService.CalculateDistanceKm(area.Latitude, area.Longitude, r.Latitude, r.Longitude) <= radiusKm);
+
+            var nearbyShelters = shelters
+                .Where(s => _mappingService.CalculateDistanceKm(area.Latitude, area.Longitude, s.Latitude, s.Longitude) <= radiusKm)
+                .ToList();
+            int availableBeds = nearbyShelters.Sum(s => Math.Max(0, s.TotalCapacity - s.CurrentOccupancy));
+
+            int nearbyDepots = resources
+                .Where(res => _mappingService.CalculateDistanceKm(area.Latitude, area.Longitude, res.WarehouseLatitude, res.WarehouseLongitude) <= radiusKm)
+                .Select(res => res.WarehouseName)
+                .Distinct()
+                .Count();
+
+            int serviceCentres = refs
+                .Count(mr => _mappingService.CalculateDistanceKm(area.Latitude, area.Longitude, mr.Latitude, mr.Longitude) <= radiusKm);
+
+            string coverageStatus = (nearbyShelters.Count == 0 || (openRequestsInZone > 0 && availableBeds < 10 && nearbyDepots == 0))
+                ? "CriticalGap"
+                : (availableBeds < 30 || openRequestsInZone > 2 ? "Strained" : "WellCovered");
+
+            return new
+            {
+                AreaId = area.Id,
+                area.ZoneName,
+                area.District,
+                area.RiskLevel,
+                area.CoverageRadiusKm,
+                area.EstimatedAffectedPopulation,
+                OpenRequestsCount = openRequestsInZone,
+                NearbySheltersCount = nearbyShelters.Count,
+                AvailableShelterBeds = availableBeds,
+    }
 }
