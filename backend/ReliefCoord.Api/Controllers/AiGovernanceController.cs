@@ -27,7 +27,7 @@ public class AiGovernanceController : ControllerBase
     }
 
     [HttpGet("recommendations")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult> GetRecommendations(CancellationToken cancellationToken)
     {
         var recommendations = await _unitOfWork.AiRecommendations.GetAllAsync(cancellationToken);
@@ -46,7 +46,7 @@ public class AiGovernanceController : ControllerBase
     }
 
     [HttpGet("decisions")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult> GetHumanGovernanceDecisions(CancellationToken cancellationToken)
     {
         var decisions = await _unitOfWork.GovernanceDecisions.GetAllAsync(cancellationToken);
@@ -73,7 +73,7 @@ public class AiGovernanceController : ControllerBase
     }
 
     [HttpGet("demand-forecast/{crisisEventId:guid}")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult> GetDemandForecast(Guid crisisEventId, CancellationToken cancellationToken)
     {
         var requests = await _unitOfWork.AssistanceRequests.FindAsync(r => r.CrisisEventId == crisisEventId, cancellationToken);
@@ -84,7 +84,7 @@ public class AiGovernanceController : ControllerBase
     }
 
     [HttpGet("multilingual-briefing/{crisisEventId:guid}")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<ActionResult> GetMultilingualBriefing(
         Guid crisisEventId,
         [FromQuery] string lang = "en",
