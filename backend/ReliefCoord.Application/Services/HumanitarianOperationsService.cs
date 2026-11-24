@@ -48,7 +48,7 @@ public class HumanitarianOperationsService
             100_000,
             HashAlgorithmName.SHA256,
             32);
-        string hash = Convert.ToBase64String(keyBytes);
+        string hash = $"PBKDF2$100000${Convert.ToBase64String(keyBytes)}";
         string salt = Convert.ToBase64String(saltBytes);
         return (hash, salt);
     }
@@ -227,37 +227,234 @@ public class HumanitarianOperationsService
         ), cancellationToken);
 
         request.Timeline = new List<RequestHistory> { history };
-}
-
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
-
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        request.AiRecommendations = new List<AiRecommendation> { recommendation };
+        return request;
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    public async Task<HumanGovernanceDecision> ReviewAiRecommendationAsync(
+        Guid reviewerUserId,
+        string reviewerName,
+        UserRole reviewerRole,
+        ReviewAiRecommendationDto dto,
+        CancellationToken cancellationToken = default)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        if (reviewerRole != UserRole.EmergencyCoordinator &&
+            reviewerRole != UserRole.CaseManager &&
+            reviewerRole != UserRole.SystemAdmin &&
+            reviewerRole != UserRole.OrganizationAdmin)
+        {
+            throw new UnauthorizedAccessException("Critical humanitarian AI decisions require EmergencyCoordinator, CaseManager, SystemAdmin, or OrganizationAdmin authority.");
+        }
+
+        var recommendation = await _unitOfWork.AiRecommendations.GetByIdAsync(dto.RecommendationId, cancellationToken)
+            ?? throw new KeyNotFoundException("AI Recommendation not found.");
+
+        recommendation.GovernanceStatus = dto.DecisionStatus;
+        recommendation.UpdatedAtUtc = DateTime.UtcNow;
+        await _unitOfWork.AiRecommendations.UpdateAsync(recommendation, cancellationToken);
+
+        string originalAiSummary = $"Category={recommendation.RecommendedCategory}, Urgency={recommendation.RecommendedUrgency}, PriorityScore={recommendation.RecommendedPriorityScore:F1}";
+        UrgencyLevel finalUrgency = dto.OverriddenUrgency ?? recommendation.RecommendedUrgency;
+        string finalCategory = dto.OverriddenCategory?.ToString() ?? recommendation.RecommendedCategory;
+        string finalHumanSummary = $"Action={dto.DecisionStatus}, FinalCategory={finalCategory}, FinalUrgency={finalUrgency}";
+
+        var decision = new HumanGovernanceDecision
+        {
+            AiRecommendationId = recommendation.Id,
+            ActionTaken = dto.DecisionStatus,
+            OriginalAiRecommendationSummary = originalAiSummary,
+            OriginalConfidence = recommendation.ConfidenceScore,
+            FinalHumanDecisionSummary = finalHumanSummary,
+            OverrideJustification = dto.Justification,
+            ResponsibleUserId = reviewerUserId,
+            ResponsibleUserName = reviewerName,
+            ResponsibleUserRole = reviewerRole.ToString(),
+            DecisionTimestampUtc = DateTime.UtcNow
+        };
+
+        await _unitOfWork.GovernanceDecisions.AddAsync(decision, cancellationToken);
+
+        if (recommendation.AssistanceRequestId.HasValue)
+        {
+            var request = await _unitOfWork.AssistanceRequests.GetByIdAsync(recommendation.AssistanceRequestId.Value, cancellationToken);
+            if (request != null)
+            {
+                var prevStatus = request.Status;
+                if (dto.DecisionStatus == GovernanceDecisionStatus.Approved || dto.DecisionStatus == GovernanceDecisionStatus.Modified)
+                {
+                    request.FinalApprovedUrgency = finalUrgency;
+                    if (dto.OverriddenCategory.HasValue)
+                    {
+                        request.Category = dto.OverriddenCategory.Value;
+                    }
+                    request.Status = finalUrgency >= UrgencyLevel.Critical ? RequestStatus.Escalated : RequestStatus.Prioritised;
+                    if (dto.DecisionStatus == GovernanceDecisionStatus.Modified)
+                    {
+                        request.PriorityScore = Math.Min(100.0, (int)finalUrgency * 19.5);
+                    }
+                }
+                else if (dto.DecisionStatus == GovernanceDecisionStatus.Rejected)
+                {
+                    request.Status = RequestStatus.Verified;
+                }
+
+                request.UpdatedAtUtc = DateTime.UtcNow;
+                await _unitOfWork.AssistanceRequests.UpdateAsync(request, cancellationToken);
+
+                await _unitOfWork.RequestHistories.AddAsync(new RequestHistory
+                {
+                    AssistanceRequestId = request.Id,
+                    PreviousStatus = prevStatus,
+                    NewStatus = request.Status,
+                    ActionDescription = $"Human-in-the-loop governance {dto.DecisionStatus} by {reviewerName} ({reviewerRole}). Final Urgency: {request.FinalApprovedUrgency}. Rationale: {dto.Justification}",
+                    ChangedByUserId = reviewerUserId,
+                    ChangedByUserName = reviewerName,
+                    ChangedByRole = reviewerRole.ToString()
+                }, cancellationToken);
+            }
+        }
+
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "AiGovernance",
+            ActionName = $"AiRecommendation_{dto.DecisionStatus}",
+            EntityType = nameof(AiRecommendation),
+            EntityId = recommendation.Id.ToString(),
+            ActorUserId = reviewerUserId,
+            ActorUserName = reviewerName,
+            ActorRole = reviewerRole.ToString(),
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                recommendation.Id,
+                recommendation.AssistanceRequestId,
+                OriginalAi = originalAiSummary,
+                OriginalConfidence = recommendation.ConfidenceScore,
+                HumanDecision = finalHumanSummary,
+                dto.Justification,
+                decision.DecisionTimestampUtc
+            })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _eventPublisher.PublishAsync(new AiRecommendationReviewedEvent(
+            Guid.NewGuid(),
+            DateTime.UtcNow,
+            recommendation.Id,
+            recommendation.AssistanceRequestId,
+            dto.DecisionStatus.ToString(),
+            reviewerUserId,
+            reviewerName
+        ), cancellationToken);
+
+        return decision;
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    public async Task<ResourceAllocationPlanResult> ExecuteResourceAllocationAsync(
+        Guid actorUserId,
+        string actorName,
+        UserRole actorRole,
+        IReadOnlyList<Guid> requestIds,
+        string strategyName,
+        CancellationToken cancellationToken = default)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        if (actorRole != UserRole.LogisticsManager &&
+            actorRole != UserRole.PartnerOfficer &&
+            actorRole != UserRole.EmergencyCoordinator &&
+            actorRole != UserRole.OrganizationAdmin &&
+            actorRole != UserRole.SystemAdmin)
+        {
+            throw new UnauthorizedAccessException("Resource allocation requires LogisticsManager, PartnerOfficer, EmergencyCoordinator, OrganizationAdmin, or SystemAdmin role.");
+        }
+
+        var allRequests = await _unitOfWork.AssistanceRequests.GetAllAsync(cancellationToken);
+        var competingRequests = allRequests.Where(r => requestIds.Contains(r.Id)).ToList();
+        if (!competingRequests.Any())
+        {
+            throw new InvalidOperationException("No valid assistance requests selected for allocation.");
+        }
+
+        var allResources = await _unitOfWork.Resources.GetAllAsync(cancellationToken);
+        var strategy = _strategyResolver.Resolve(strategyName);
+        var plan = strategy.ComputeAllocationPlan(competingRequests, allResources, _mappingService);
+
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            foreach (var item in plan.Allocations)
+            {
+                if (item.SelectedResourceItemId != Guid.Empty && item.AllocatedQuantity > 0)
+                {
+                    var resource = await _unitOfWork.Resources.GetByIdAsync(item.SelectedResourceItemId, cancellationToken);
+                    if (resource != null)
+                    {
+                        resource.AvailableQuantity = Math.Max(0, resource.AvailableQuantity - item.AllocatedQuantity);
+                        resource.AllocatedQuantity += item.AllocatedQuantity;
+                        resource.UpdatedAtUtc = DateTime.UtcNow;
+                        await _unitOfWork.Resources.UpdateAsync(resource, cancellationToken);
+                    }
+
+                    var allocationEntity = new ResourceAllocation
+                    {
+                        ResourceItemId = item.SelectedResourceItemId,
+                        AssistanceRequestId = item.AssistanceRequestId,
+                        RequestedQuantity = item.RequestedQuantity,
+                        AllocatedQuantity = item.AllocatedQuantity,
+                        IsPartialShortageAllocation = item.IsPartialShortage,
+                        AllocationStrategyUsed = plan.StrategyUsed,
+                        ConstraintMatchScore = item.ConstraintScore,
+                        EstimatedDistanceKm = item.DistanceKm,
+                        AlternativeRecommendation = item.AlternativeRecommendation,
+                        Status = item.IsPartialShortage ? "PartiallyAllocated_Shortage" : "Allocated",
+                        ApprovedByUserId = actorUserId
+                    };
+                    await _unitOfWork.ResourceAllocations.AddAsync(allocationEntity, cancellationToken);
+
+                    var request = competingRequests.First(r => r.Id == item.AssistanceRequestId);
+                    var route = await _mappingService.CalculateRouteAsync(
+                        resource?.WarehouseLatitude ?? request.Latitude,
+                        resource?.WarehouseLongitude ?? request.Longitude,
+                        request.Latitude,
+                        request.Longitude,
+                        cancellationToken);
+
+                    await _unitOfWork.DispatchRecords.AddAsync(new DispatchRecord
+                    {
+                        ResourceAllocationId = allocationEntity.Id,
+                        VehicleRegistration = $"UN-RELIEF-{Random.Shared.Next(100, 999)}",
+                        DriverName = "Logistics Rapid Response Unit",
+                        RouteSummary = route.RouteSummary,
+                        DistanceKm = route.DistanceKm,
+                        EstimatedTravelMinutes = route.EstimatedMinutes,
+                        DispatchStatus = "InTransit"
+                    }, cancellationToken);
+
+                    var previousStatus = request.Status;
+                    request.Status = item.IsPartialShortage ? RequestStatus.InProgress : RequestStatus.Fulfilled;
+                    request.UpdatedAtUtc = DateTime.UtcNow;
+                    await _unitOfWork.AssistanceRequests.UpdateAsync(request, cancellationToken);
+
+                    await _unitOfWork.RequestHistories.AddAsync(new RequestHistory
+                    {
+                        AssistanceRequestId = request.Id,
+                        PreviousStatus = previousStatus,
+                        NewStatus = request.Status,
+                        ActionDescription = $"Allocated {item.AllocatedQuantity}/{item.RequestedQuantity} units of {item.SelectedResourceName} from {item.WarehouseName} using {plan.StrategyUsed} strategy. {item.AlternativeRecommendation}",
+                        ChangedByUserId = actorUserId,
+                        ChangedByUserName = actorName,
+                        ChangedByRole = actorRole.ToString()
+                    }, cancellationToken);
+
+                    await _eventPublisher.PublishAsync(new ResourceAllocatedEvent(
+                        Guid.NewGuid(),
+                        DateTime.UtcNow,
+                        allocationEntity.Id,
+                        request.Id,
+                        request.CitizenUserId,
+                        item.SelectedResourceName,
+                        item.AllocatedQuantity,
+                        item.IsPartialShortage
+                    ), cancellationToken);
+                }
+
+                if (item.IsPartialShortage)
 }
