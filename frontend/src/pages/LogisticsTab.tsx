@@ -93,7 +93,7 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({
     userRole === 'LogisticsManager' ||
     userRole === 'EmergencyCoordinator' ||
     userRole === 'PartnerOfficer' ||
-    
+    userRole === 'OrganizationAdmin' ||
     userRole === 'SystemAdmin';
 
   const lowStockAndExpiringItems = resources
