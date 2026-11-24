@@ -69,7 +69,7 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
   const canApproveOrOverrideAi =
     userRole === 'EmergencyCoordinator' ||
     userRole === 'CaseManager' ||
-    
+    userRole === 'OrganizationAdmin' ||
     userRole === 'SystemAdmin';
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -329,7 +329,7 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
 
                   <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
                     <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                      AI Step
+                      1. AI Analyzed
                     </span>
                     <ArrowRight className="w-3 h-3 text-zinc-500" />
                     <span
@@ -545,32 +545,3 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
     </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
