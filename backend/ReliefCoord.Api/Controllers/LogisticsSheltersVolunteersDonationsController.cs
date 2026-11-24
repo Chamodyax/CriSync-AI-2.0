@@ -260,38 +260,299 @@ public class LogisticsSheltersVolunteersDonationsController : ControllerBase
         var partnerRequests = await _unitOfWork.PartnerAidRequests.GetAllAsync(cancellationToken);
 
         return Ok(new
-    }
-}
-
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
-
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        {
+            Allocations = allocations,
+            Dispatches = dispatches,
+            PartnerAidRequests = partnerRequests
+        });
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    [HttpPost("logistics/resources/{id:guid}/replenish")]
+    [Authorize(Roles = "LogisticsManager,PartnerOfficer,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> ReplenishResource(Guid id, [FromBody] ReplenishResourceDto dto, CancellationToken cancellationToken)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        if (dto.AddedQuantity <= 0)
+        {
+            return BadRequest(new { message = "Replenishment quantity must be greater than 0." });
+        }
+
+        var item = await _unitOfWork.Resources.GetByIdAsync(id, cancellationToken);
+        if (item == null)
+        {
+            return NotFound(new { message = "Resource item not found." });
+        }
+
+        item.TotalQuantity += dto.AddedQuantity;
+        item.AvailableQuantity += dto.AddedQuantity;
+        item.UpdatedAtUtc = DateTime.UtcNow;
+        await _unitOfWork.Resources.UpdateAsync(item, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Logistics",
+            ActionName = "ResourceStock_Replenished",
+            EntityType = nameof(ResourceItem),
+            EntityId = item.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "LogisticsManager",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "LogisticsManager",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { item.Name, dto.AddedQuantity, item.AvailableQuantity, item.TotalQuantity, dto.SourceNote })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(item);
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    [HttpPost("logistics/dispatches/{id:guid}/deliver")]
+    [Authorize(Roles = "LogisticsManager,PartnerOfficer,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> MarkDispatchDelivered(Guid id, CancellationToken cancellationToken)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var dispatch = await _unitOfWork.DispatchRecords.GetByIdAsync(id, cancellationToken);
+        if (dispatch == null)
+        {
+            return NotFound(new { message = "Dispatch record not found." });
+        }
+
+        dispatch.DispatchStatus = "Delivered";
+        dispatch.DeliveredAtUtc = DateTime.UtcNow;
+        dispatch.UpdatedAtUtc = DateTime.UtcNow;
+        await _unitOfWork.DispatchRecords.UpdateAsync(dispatch, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Logistics",
+            ActionName = "ConvoyDispatch_Delivered",
+            EntityType = nameof(DispatchRecord),
+            EntityId = dispatch.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "LogisticsManager",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "LogisticsManager",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { dispatch.VehicleRegistration, dispatch.RouteSummary, dispatch.DeliveredAtUtc })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(dispatch);
+    }
+
+    [HttpPost("logistics/partner-aid-requests")]
+    [Authorize(Roles = "LogisticsManager,PartnerOfficer,EmergencyCoordinator,ShelterAdmin,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> CreatePartnerAidRequest([FromBody] CreatePartnerAidRequestDto dto, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.ResourceName) || dto.QuantityNeeded <= 0)
+        {
+            return BadRequest(new { message = "Resource name and positive quantity needed are required." });
+        }
+
+        var orgClaim = User.FindFirstValue("organisation_id");
+        Guid requestingOrgId = Guid.TryParse(orgClaim, out var parsedOrg) ? parsedOrg : Guid.Empty;
+
+        var partnerReq = new PartnerAidRequest
+        {
+            RequestingOrganisationId = requestingOrgId,
+            TargetPartnerOrganisationId = dto.TargetPartnerOrganisationId,
+            NeededCategory = dto.NeededCategory,
+            ResourceName = dto.ResourceName.Trim(),
+            QuantityNeeded = dto.QuantityNeeded,
+            Justification = dto.Justification.Trim(),
+            Status = "OpenPartnerRequest"
+        };
+
+        await _unitOfWork.PartnerAidRequests.AddAsync(partnerReq, cancellationToken);
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "PartnerCoordination",
+            ActionName = "PartnerAidRequest_Created",
+            EntityType = nameof(PartnerAidRequest),
+            EntityId = partnerReq.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "PartnerOfficer",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "PartnerOfficer",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { partnerReq.ResourceName, partnerReq.QuantityNeeded, partnerReq.NeededCategory })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(partnerReq);
+    }
+
+    [HttpPost("logistics/partner-aid-requests/{id:guid}/fulfill")]
+    [Authorize(Roles = "PartnerOfficer,LogisticsManager,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> FulfillPartnerAidRequest(Guid id, [FromBody] FulfillPartnerAidRequestDto? dto, CancellationToken cancellationToken)
+    {
+        var req = await _unitOfWork.PartnerAidRequests.GetByIdAsync(id, cancellationToken);
+        if (req == null)
+        {
+            return NotFound(new { message = "Partner aid request not found." });
+        }
+
+        var orgClaim = User.FindFirstValue("organisation_id");
+        if (Guid.TryParse(orgClaim, out var fulfillOrgId) && req.TargetPartnerOrganisationId == null)
+        {
+            req.TargetPartnerOrganisationId = fulfillOrgId;
+        }
+
+        req.Status = "FulfilledByPartner";
+        if (!string.IsNullOrWhiteSpace(dto?.FulfillmentNotes))
+        {
+            req.Justification = $"{req.Justification} | Fulfillment: {dto.FulfillmentNotes.Trim()}";
+        }
+        req.UpdatedAtUtc = DateTime.UtcNow;
+        await _unitOfWork.PartnerAidRequests.UpdateAsync(req, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "PartnerCoordination",
+            ActionName = "PartnerAidRequest_Fulfilled",
+            EntityType = nameof(PartnerAidRequest),
+            EntityId = req.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "PartnerOfficer",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "PartnerOfficer",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { req.ResourceName, req.QuantityNeeded, req.Status })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(req);
+    }
+
+    [HttpGet("shelters")]
+    [Authorize]
+    public async Task<ActionResult> GetShelters(CancellationToken cancellationToken)
+    {
+        var shelters = await _unitOfWork.Shelters.GetAllAsync(cancellationToken);
+        var allocations = await _unitOfWork.ShelterAllocations.GetAllAsync(cancellationToken);
+        return Ok(new
+        {
+            Shelters = shelters,
+            Allocations = allocations
+        });
+    }
+
+    [HttpGet("shelters/recommendations/{requestId:guid}")]
+    [Authorize]
+    public async Task<ActionResult> GetShelterRecommendations(Guid requestId, CancellationToken cancellationToken)
+    {
+        var req = await _unitOfWork.AssistanceRequests.GetByIdAsync(requestId, cancellationToken);
+        if (req == null)
+        {
+            return NotFound();
+        }
+
+        var shelters = await _unitOfWork.Shelters.GetAllAsync(cancellationToken);
+        var ai = _aiProviderFactory.CreateProvider();
+        var candidates = await ai.RecommendSheltersForRequestAsync(req, shelters, cancellationToken);
+        return Ok(candidates);
+    }
+
+    [HttpPost("shelters")]
+    [Authorize(Roles = "ShelterAdmin,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> CreateShelter([FromBody] CreateShelterDto dto, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(dto.Address))
+        {
+            return BadRequest(new { message = "Shelter name and address are required." });
+        }
+
+        Guid crisisId = dto.CrisisEventId ?? Guid.Empty;
+        if (crisisId == Guid.Empty)
+        {
+            var crises = await _unitOfWork.CrisisEvents.GetAllAsync(cancellationToken);
+            crisisId = crises.OrderByDescending(c => c.IsActive).ThenByDescending(c => c.CreatedAtUtc).FirstOrDefault()?.Id ?? Guid.Empty;
+        }
+
+        var shelter = new Shelter
+        {
+            Name = dto.Name.Trim(),
+            CrisisEventId = crisisId,
+            Address = dto.Address.Trim(),
+            Latitude = dto.Latitude,
+            Longitude = dto.Longitude,
+            TotalCapacity = Math.Max(1, dto.TotalCapacity),
+            CurrentOccupancy = Math.Clamp(dto.CurrentOccupancy, 0, Math.Max(1, dto.TotalCapacity)),
+            IsWheelchairAccessible = dto.IsWheelchairAccessible,
+            HasMedicalFacility = dto.HasMedicalFacility,
+            HasCleanWater = dto.HasCleanWater,
+            HasPowerBackup = dto.HasPowerBackup,
+            HasChildSafeSpace = dto.HasChildSafeSpace,
+            AvailableServices = dto.AvailableServices?.Trim() ?? string.Empty,
+            Status = string.IsNullOrWhiteSpace(dto.Status) ? "Operational" : dto.Status.Trim(),
+            ManagedByOrganisationId = dto.ManagedByOrganisationId
+        };
+
+        await _unitOfWork.Shelters.AddAsync(shelter, cancellationToken);
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Shelters",
+            ActionName = "Shelter_Created",
+            EntityType = nameof(Shelter),
+            EntityId = shelter.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "ShelterAdmin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "ShelterAdmin",
+            IpAddress = GetClientIp(),
+            DetailsJson = JsonSerializer.Serialize(new { shelter.Name, shelter.Address, shelter.TotalCapacity })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(shelter);
+    }
+
+    [HttpPut("shelters/{id:guid}")]
+    [Authorize(Roles = "ShelterAdmin,EmergencyCoordinator,SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> UpdateShelter(Guid id, [FromBody] UpdateShelterDto dto, CancellationToken cancellationToken)
+    {
+        var shelter = await _unitOfWork.Shelters.GetByIdAsync(id, cancellationToken);
+        if (shelter == null)
+        {
+            return NotFound(new { message = "Shelter not found." });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Name))
+        {
+            return BadRequest(new { message = "Shelter name is required." });
+        }
+
+        shelter.Name = dto.Name.Trim();
+        shelter.Address = dto.Address?.Trim() ?? string.Empty;
+        shelter.TotalCapacity = Math.Max(1, dto.TotalCapacity);
+        shelter.CurrentOccupancy = Math.Clamp(dto.CurrentOccupancy, 0, shelter.TotalCapacity);
+        shelter.IsWheelchairAccessible = dto.IsWheelchairAccessible;
+        shelter.HasMedicalFacility = dto.HasMedicalFacility;
+        shelter.HasPowerBackup = dto.HasPowerBackup;
+        shelter.Status = string.IsNullOrWhiteSpace(dto.Status) ? "Operational" : dto.Status.Trim();
+        shelter.Latitude = dto.Latitude;
+        shelter.Longitude = dto.Longitude;
+
+        await _unitOfWork.Shelters.UpdateAsync(shelter, cancellationToken);
+
+        var actorId = Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var uid) ? uid : (Guid?)null;
+        await _unitOfWork.AuditEvents.AddAsync(new AuditEventRecord
+        {
+            EventCategory = "Shelters",
+            ActionName = "Admin_UpdatedShelter",
+            EntityType = nameof(Shelter),
+            EntityId = shelter.Id.ToString(),
+            ActorUserId = actorId,
+            ActorUserName = User.FindFirstValue(ClaimTypes.Name) ?? "SystemAdmin",
+            ActorRole = User.FindFirstValue(ClaimTypes.Role) ?? "SystemAdmin",
+            DetailsJson = JsonSerializer.Serialize(new { shelter.Name, shelter.TotalCapacity, shelter.CurrentOccupancy, shelter.Status })
+        }, cancellationToken);
+
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        return Ok(shelter);
+    }
+
+    [HttpDelete("shelters/{id:guid}")]
+    [Authorize(Roles = "SystemAdmin,OrganizationAdmin")]
+    public async Task<ActionResult> DeleteShelter(Guid id, CancellationToken cancellationToken)
+    {
+    }
 }
