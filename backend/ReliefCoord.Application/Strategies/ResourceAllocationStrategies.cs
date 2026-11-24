@@ -143,38 +143,143 @@ public class MultiConstraintOptimalStrategy : IResourceAllocationStrategy
                 request.PriorityScore,
                 bestResource.Id,
                 bestResource.Name,
+                bestResource.WarehouseName,
+                request.RequestedQuantity,
+                allocatedQty,
+                isPartialShortage,
+                bestScore,
+                bestDistanceKm,
+                recommendationNote
+            ));
+        }
+
+        int unmetShortfall = Math.Max(0, totalRequested - totalAllocated);
+
+        return new ResourceAllocationPlanResult(
+            StrategyName,
+            shortageEncountered,
+            totalRequested,
+            totalAllocated,
+            unmetShortfall,
+            allocations,
+            "Evaluated 5 weighted constraints: Proximity (35%), Stock Adequacy (25%), FEFO Expiry (15%), Cold-Chain Suitability (15%), and Organisation Alignment (10%)."
+        );
     }
 }
 
-internal static class LegacyCrisisDraftMapper
+public class ShortageProportionalContentionStrategy : IResourceAllocationStrategy
 {
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+    public string StrategyName => "ShortageProportionalContention";
 
-    internal static string BuildCompositeKey(string district, string category, string title)
+    public ResourceAllocationPlanResult ComputeAllocationPlan(
+        IReadOnlyList<AssistanceRequest> competingRequests,
+        IReadOnlyList<ResourceItem> candidateResources,
+        IMappingProviderService mappingService)
     {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        var allocations = new List<PlannedAllocationItemDto>();
+        if (competingRequests.Count == 0 || candidateResources.Count == 0)
+        {
+            return new ResourceAllocationPlanResult(StrategyName, false, 0, 0, 0, allocations, "No requests or resources provided.");
+        }
+
+        var firstRequest = competingRequests[0];
+        var matchingCategoryResources = candidateResources
+            .Where(r => r.Category == firstRequest.Category && r.AvailableQuantity > 0)
+            .ToList();
+
+        var primaryDepot = matchingCategoryResources
+            .OrderBy(r => mappingService.CalculateDistanceKm(
+                firstRequest.Latitude,
+                firstRequest.Longitude,
+                r.WarehouseLatitude,
+                r.WarehouseLongitude))
+            .FirstOrDefault() ?? candidateResources[0];
+
+        int remainingPool = primaryDepot.AvailableQuantity;
+        int totalDemand = competingRequests.Sum(r => r.RequestedQuantity);
+        bool isShortage = totalDemand > remainingPool;
+
+        var requestWeights = new Dictionary<Guid, double>();
+        double totalWeightSum = 0.0;
+
+        foreach (var req in competingRequests)
+        {
+            double urgencyMultiplier = (int)req.FinalApprovedUrgency;
+            double weight = urgencyMultiplier * Math.Max(10.0, req.PriorityScore) * Math.Max(1, req.AffectedPeopleCount);
+            requestWeights[req.Id] = weight;
+            totalWeightSum += weight;
+        }
+
+        var orderedCompeting = competingRequests
+            .OrderByDescending(r => requestWeights[r.Id])
+            .ToList();
+
+        int totalAllocated = 0;
+
+        foreach (var req in orderedCompeting)
+        {
+            double weightShare = requestWeights[req.Id] / Math.Max(1.0, totalWeightSum);
+            int allocatedQty;
+
+            if (!isShortage)
+            {
+                allocatedQty = req.RequestedQuantity;
+            }
+            else
+            {
+                int proportionalUnits = (int)Math.Floor(weightShare * primaryDepot.AvailableQuantity);
+                if (req.FinalApprovedUrgency >= UrgencyLevel.Critical && proportionalUnits == 0 && remainingPool > 0)
+                {
+                    proportionalUnits = 1;
+                }
+                allocatedQty = Math.Min(req.RequestedQuantity, Math.Min(remainingPool, Math.Max(1, proportionalUnits)));
+                if (remainingPool <= 0)
+                {
+                    allocatedQty = 0;
+                }
+            }
+
+            remainingPool -= allocatedQty;
+            totalAllocated += allocatedQty;
+
+            int deficit = req.RequestedQuantity - allocatedQty;
+            double distanceKm = mappingService.CalculateDistanceKm(
+                req.Latitude,
+                req.Longitude,
+                primaryDepot.WarehouseLatitude,
+                primaryDepot.WarehouseLongitude);
+
+            double sharePercentage = Math.Round(weightShare * 100.0, 1);
+            string note = deficit > 0
+                ? $"Contention rationed {allocatedQty}/{req.RequestedQuantity} units (Priority Share {sharePercentage}%). Escalated {deficit} deficit units to backup warehouse / Partner Aid Pool."
+                : "Full demand satisfied without contention deficit.";
+
+            allocations.Add(new PlannedAllocationItemDto(
+                req.Id,
+                req.ReferenceCode,
+                req.Title,
+                req.FinalApprovedUrgency,
+                req.PriorityScore,
+                primaryDepot.Id,
+                primaryDepot.Name,
+                primaryDepot.WarehouseName,
+                req.RequestedQuantity,
+                allocatedQty,
+                deficit > 0,
+                sharePercentage,
+                distanceKm,
+                note
+            ));
+        }
+
+        return new ResourceAllocationPlanResult(
+            StrategyName,
+            isShortage,
+            totalDemand,
+            totalAllocated,
+            Math.Max(0, totalDemand - totalAllocated),
+            allocations,
+            "Urgency-weighted proportional rationing prevents single-request starvation when multiple urgent requests compete for limited stock."
+        );
     }
-
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
-    {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
-    }
-
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
-    {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
 }
