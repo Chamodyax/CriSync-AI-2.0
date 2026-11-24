@@ -283,3 +283,134 @@ public class ShortageProportionalContentionStrategy : IResourceAllocationStrateg
         );
     }
 }
+
+public class ProximityFirstStrategy : IResourceAllocationStrategy
+{
+    public string StrategyName => "ProximityFirst";
+
+    public ResourceAllocationPlanResult ComputeAllocationPlan(
+        IReadOnlyList<AssistanceRequest> competingRequests,
+        IReadOnlyList<ResourceItem> candidateResources,
+        IMappingProviderService mappingService)
+    {
+        var allocations = new List<PlannedAllocationItemDto>();
+        var remainingStock = candidateResources.ToDictionary(r => r.Id, r => r.AvailableQuantity);
+        int totalRequested = 0;
+        int totalAllocated = 0;
+        bool shortage = false;
+
+        foreach (var req in competingRequests)
+        {
+            totalRequested += req.RequestedQuantity;
+
+            var nearestWarehouse = candidateResources
+                .Where(r => r.Category == req.Category && remainingStock[r.Id] > 0)
+                .OrderBy(r => mappingService.CalculateDistanceKm(req.Latitude, req.Longitude, r.WarehouseLatitude, r.WarehouseLongitude))
+                .FirstOrDefault();
+
+            if (nearestWarehouse == null)
+            {
+                shortage = true;
+                continue;
+            }
+
+            double distanceKm = mappingService.CalculateDistanceKm(
+                req.Latitude,
+                req.Longitude,
+                nearestWarehouse.WarehouseLatitude,
+                nearestWarehouse.WarehouseLongitude);
+
+            int qty = Math.Min(req.RequestedQuantity, remainingStock[nearestWarehouse.Id]);
+            remainingStock[nearestWarehouse.Id] -= qty;
+            totalAllocated += qty;
+
+            if (qty < req.RequestedQuantity)
+            {
+                shortage = true;
+            }
+
+            allocations.Add(new PlannedAllocationItemDto(
+                req.Id,
+                req.ReferenceCode,
+                req.Title,
+                req.FinalApprovedUrgency,
+                req.PriorityScore,
+                nearestWarehouse.Id,
+                nearestWarehouse.Name,
+                nearestWarehouse.WarehouseName,
+                req.RequestedQuantity,
+                qty,
+                qty < req.RequestedQuantity,
+                Math.Round(Math.Max(0.0, 100.0 - distanceKm), 2),
+                distanceKm,
+                qty < req.RequestedQuantity ? "Nearest warehouse depleted; switch to MultiConstraintOptimal." : "Nearest warehouse selected."
+            ));
+        }
+
+        return new ResourceAllocationPlanResult(
+            StrategyName,
+            shortage,
+            totalRequested,
+            totalAllocated,
+            Math.Max(0, totalRequested - totalAllocated),
+            allocations,
+            "Selected closest warehouse based on Haversine distance alone."
+        );
+    }
+}
+
+public class ResourceAllocationStrategyResolver
+{
+    private readonly IEnumerable<IResourceAllocationStrategy> _strategies;
+
+    public ResourceAllocationStrategyResolver(IEnumerable<IResourceAllocationStrategy> strategies)
+    {
+        _strategies = strategies;
+    }
+
+    public IResourceAllocationStrategy Resolve(string? strategyName)
+    {
+        foreach (var strategy in _strategies)
+        {
+            if (strategy.StrategyName.Equals(strategyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return strategy;
+            }
+        }
+
+        return _strategies.First();
+    }
+}
+
+internal static class LegacyCrisisDraftMapper
+{
+    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    {
+        >= 5 => "LIFE_THREATENING",
+        4 => "CRITICAL",
+        3 => "HIGH",
+        2 => "MEDIUM",
+        _ => "LOW"
+    };
+
+    internal static string BuildCompositeKey(string district, string category, string title)
+    {
+        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
+        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
+        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
+        return $"{d}::{c}::{t.GetHashCode():X8}";
+    }
+
+    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    {
+        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
+        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
+        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
+        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+    }
+
+    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    {
+        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
+    };
+}
