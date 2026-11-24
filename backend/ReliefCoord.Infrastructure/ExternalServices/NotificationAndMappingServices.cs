@@ -293,5 +293,124 @@ public class ResilientMappingProviderService : IMappingProviderService
             _resilienceMonitor.RecordTrip("Mapping");
             return ResolveOfflineReverseGazetteer(latitude, longitude, "OfflineGazetteerFallback");
         }
+
+        if (IsLiveOsmEnabled())
+        {
+            string url = string.Format(
+                CultureInfo.InvariantCulture,
+                "https://nominatim.openstreetmap.org/reverse?format=json&lat={0}&lon={1}",
+                latitude,
+                longitude);
+            using var doc = await TrySendNominatimGetAsync(url, cancellationToken);
+            if (doc != null &&
+                doc.RootElement.TryGetProperty("display_name", out var dn) &&
+                !string.IsNullOrWhiteSpace(dn.GetString()))
+            {
+                return new GeocodingResultDto(
+                    dn.GetString()!,
+                    Math.Round(latitude, 4),
+                    Math.Round(longitude, 4),
+                    "Nominatim-OSM-Reverse-Live");
+            }
+
+            _resilienceMonitor.RecordTrip("Mapping");
+            return ResolveOfflineReverseGazetteer(latitude, longitude, "OfflineGazetteerFallback");
+        }
+
+        return ResolveOfflineReverseGazetteer(latitude, longitude, "Nominatim-OSM-Reverse");
     }
+
+    private async Task<JsonDocument?> TrySendNominatimGetAsync(string url, CancellationToken cancellationToken)
+    {
+        int timeoutSec = GetHttpTimeoutSeconds();
+        for (int attempt = 1; attempt <= 2; attempt++)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
+
+                var client = _httpClientFactory!.CreateClient();
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.UserAgent.ParseAdd("CriSync-Humanitarian-Platform/1.0");
+
+                using var response = await client.SendAsync(request, cts.Token);
+                if (response.IsSuccessStatusCode)
+                {
+                    await using var stream = await response.Content.ReadAsStreamAsync(cts.Token);
+                    return await JsonDocument.ParseAsync(stream, cancellationToken: cts.Token);
+                }
+            }
+            catch
+            {
+            }
+
+            if (attempt < 2)
+            {
+                await Task.Delay(150 * attempt, cancellationToken);
+            }
+        }
+
+        return null;
+    }
+
+    private GeocodingResultDto ResolveOfflineReverseGazetteer(double latitude, double longitude, string providerName)
+    {
+        var zones = new[]
+        {
+            (Label: "Ratnapura Flood Operations Zone, Sri Lanka", Lat: 6.6828, Lon: 80.3992),
+            (Label: "Kalutara River Basin Sector, Sri Lanka", Lat: 6.5854, Lon: 79.9607),
+            (Label: "Badulla Highland Landslide Zone, Sri Lanka", Lat: 6.9934, Lon: 81.0550),
+            (Label: "Colombo Central Humanitarian Hub, Sri Lanka", Lat: 6.9271, Lon: 79.8612)
+        };
+
+        var nearest = zones
+            .Select(z => (z.Label, Dist: Math.Round(CalculateDistanceKm(latitude, longitude, z.Lat, z.Lon), 2)))
+            .OrderBy(x => x.Dist)
+            .First();
+
+        string suffix = providerName == "OfflineGazetteerFallback"
+            ? " (Resolved via Offline Gazetteer)"
+            : string.Empty;
+
+        string formatted = string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} (~{1} km from {2:F4}, {3:F4}){4}",
+            nearest.Label,
+            nearest.Dist,
+            latitude,
+    }
+}
+
+internal static class LegacyCrisisDraftMapper
+{
+    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    {
+        >= 5 => "LIFE_THREATENING",
+        4 => "CRITICAL",
+        3 => "HIGH",
+        2 => "MEDIUM",
+        _ => "LOW"
+    };
+
+    internal static string BuildCompositeKey(string district, string category, string title)
+    {
+        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
+        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
+        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
+        return $"{d}::{c}::{t.GetHashCode():X8}";
+    }
+
+    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    {
+        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
+        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
+        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
+        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+    }
+
+    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    {
+        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
+    };
 }
