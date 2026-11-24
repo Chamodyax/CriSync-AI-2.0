@@ -152,7 +152,7 @@ export const InteractiveCrisisMap: React.FC<MapProps> = ({
       });
     }
 
-    if (false) {
+    if (layers.routes && requests.length > 0 && resources.length > 0) {
       requests
         .filter((r) => r.status !== 'Fulfilled' && r.status !== 'Closed' && r.status !== 'MergedAsDuplicate')
         .slice(0, 12)
@@ -322,7 +322,7 @@ export const InteractiveCrisisMap: React.FC<MapProps> = ({
           className="px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/15 border border-white/15 text-[11px] font-bold text-zinc-200 inline-flex items-center gap-1.5 transition shrink-0"
         >
           {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-          <span>Expand</span>
+          <span>{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Map'}</span>
         </button>
       </div>
 
@@ -336,32 +336,3 @@ export const InteractiveCrisisMap: React.FC<MapProps> = ({
     </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
