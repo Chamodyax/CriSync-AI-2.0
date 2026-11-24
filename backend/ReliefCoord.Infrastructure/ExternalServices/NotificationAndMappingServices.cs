@@ -379,38 +379,56 @@ public class ResilientMappingProviderService : IMappingProviderService
             nearest.Label,
             nearest.Dist,
             latitude,
-    }
-}
+            longitude,
+            suffix);
 
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
-    {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
-
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        return new GeocodingResultDto(formatted, Math.Round(latitude, 4), Math.Round(longitude, 4), providerName);
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    private static RouteCalculationDto BuildHaversineFallbackRoute(double haversineKm)
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        double fallbackRoadKm = Math.Round(haversineKm * 1.28, 2);
+        int fallbackMinutes = Math.Max(8, (int)Math.Ceiling(fallbackRoadKm * 1.65));
+        return new RouteCalculationDto(
+            fallbackRoadKm,
+            fallbackMinutes,
+            $"[OFFLINE GEOSPATIAL FALLBACK] Estimated terrain corridor ({fallbackRoadKm} km, ~{fallbackMinutes} mins)",
+            "LocalHaversineFallbackEngine"
+        );
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    private static GeocodingResultDto ResolveOfflineGazetteer(string? address)
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var baseMatch = ResolveLocalKnownAddress(address, "OfflineGazetteerFallback");
+        return baseMatch with
+        {
+            FormattedAddress = $"{baseMatch.FormattedAddress} (Resolved via Offline Gazetteer)"
+        };
+    }
+
+    private static GeocodingResultDto ResolveLocalKnownAddress(string? address, string providerName)
+    {
+        string lower = (address ?? string.Empty).ToLowerInvariant();
+        if (lower.Contains("ratnapura"))
+        {
+            return new GeocodingResultDto("Ratnapura Flood Operations Zone, Sri Lanka", 6.6828, 80.3992, providerName);
+        }
+        if (lower.Contains("kalutara"))
+        {
+            return new GeocodingResultDto("Kalutara River Basin Sector, Sri Lanka", 6.5854, 79.9607, providerName);
+        }
+        if (lower.Contains("badulla"))
+        {
+            return new GeocodingResultDto("Badulla Highland Landslide Zone, Sri Lanka", 6.9934, 81.0550, providerName);
+        }
+
+        return new GeocodingResultDto(
+            string.IsNullOrWhiteSpace(address) ? "Colombo Central Humanitarian Hub, Sri Lanka" : address,
+            6.9271,
+            79.8612,
+            providerName
+        );
+    }
+
+    private static double DegreesToRadians(double deg) => deg * (Math.PI / 180.0);
 }
