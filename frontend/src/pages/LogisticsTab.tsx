@@ -93,7 +93,7 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({
     userRole === 'LogisticsManager' ||
     userRole === 'EmergencyCoordinator' ||
     userRole === 'PartnerOfficer' ||
-    userRole === 'OrganizationAdmin' ||
+    
     userRole === 'SystemAdmin';
 
   const lowStockAndExpiringItems = resources
@@ -803,34 +803,146 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({
                       type="button"
                       onClick={() => onMarkDispatchDelivered(d.id)}
                       className="keep-white px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Mark Delivered</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-6 bento-glass rounded-3xl p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-300 flex items-center justify-center shrink-0">
+                <Handshake className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  Cross-Organisation Partner Aid Requests
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Escalate stock shortages and coordinate mutual aid across NGOs &amp; shelters
+                </p>
+              </div>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-xs font-bold text-amber-300">
+              {partnerAidRequests.length} Requests
+            </span>
+          </div>
+
+          {onCreatePartnerAidRequest && (
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!partnerResourceName.trim()) return;
+                await onCreatePartnerAidRequest({
+                  neededCategory: partnerCategory,
+                  resourceName: partnerResourceName,
+                  quantityNeeded: Number(partnerQty),
+                  justification: partnerJustification,
+                  targetPartnerOrganisationId: targetPartnerOrgId || null
+                });
+                setPartnerResourceName('');
+                setPartnerJustification('');
+              }}
+              className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs p-3 rounded-2xl bg-black/20 border border-white/10"
+            >
+              <select
+                value={partnerCategory}
+                onChange={(e) => setPartnerCategory(e.target.value)}
+                className="rsvp-input"
+              >
+                <option value="Medicine">Medicine</option>
+                <option value="Food">Food</option>
+                <option value="WaterAndSanitation">Clean Water</option>
+                <option value="TemporaryShelter">Shelter Supplies</option>
+                <option value="AccessibilityAssistance">Accessibility</option>
+              </select>
+              <input
+                type="text"
+                required
+                value={partnerResourceName}
+                onChange={(e) => setPartnerResourceName(e.target.value)}
+                placeholder="Needed item name"
+                className="rsvp-input sm:col-span-2"
+              />
+              <input
+                type="number"
+                min={1}
+                required
+                value={partnerQty}
+                onChange={(e) => setPartnerQty(Number(e.target.value))}
+                className="rsvp-input font-mono"
+              />
+              <select
+                value={targetPartnerOrgId}
+                onChange={(e) => setTargetPartnerOrgId(e.target.value)}
+                className="rsvp-input sm:col-span-2"
+              >
+                <option value="">Broadcast to All Verified Partners</option>
+                {organisations.map((org) => (
+                  <option key={org.id} value={org.id}>{org.name}</option>
+                ))}
+              </select>
+              <input
+                type="text"
+                required
+                value={partnerJustification}
+                onChange={(e) => setPartnerJustification(e.target.value)}
+                placeholder="Urgent mutual-aid reason"
+                className="rsvp-input sm:col-span-1"
+              />
+              <button
+                type="submit"
+                className="keep-white py-2 px-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold"
+              >
+                Post Aid Request
+              </button>
+            </form>
+          )}
+
+          <div className="space-y-2.5 text-xs max-h-64 overflow-y-auto pr-1 content-scroll">
+            {partnerAidRequests.length === 0 ? (
+              <p className="text-zinc-400">
+                No cross-organisation partner aid requests open right now.
+              </p>
+            ) : (
+              partnerAidRequests.map((pr) => (
+                <div
+                  key={pr.id}
+                  className="p-3.5 rounded-2xl bg-white/[0.025] border border-white/[0.08] flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-white">
+                        {pr.quantityNeeded} × {pr.resourceName}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 font-bold text-[10px]">
+                        {pr.status}
+                      </span>
+                    </div>
+                    <p className="text-zinc-400">{pr.justification}</p>
+                  </div>
+                  {canDispatch && onFulfillPartnerAidRequest && pr.status !== 'FulfilledByPartner' && (
+                    <button
+                      type="button"
+                      onClick={() => onFulfillPartnerAidRequest(pr.id, 'Partner transfer confirmed')}
+                      className="keep-white px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold inline-flex items-center gap-1.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Fulfill Request</span>
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
