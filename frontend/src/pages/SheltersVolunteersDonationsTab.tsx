@@ -127,7 +127,7 @@ export const SheltersTab: React.FC<{
       currentOccupancy: 0,
       isWheelchairAccessible: newWheelchair,
       hasMedicalFacility: newMedical,
-      hasCleanWater: false,
+      hasCleanWater: true,
       hasPowerBackup: true,
       hasChildSafeSpace: true,
       availableServices: 'Emergency Shelter, Clean Water, Basic First Aid',
