@@ -282,34 +282,289 @@ export const LogisticsTab: React.FC<LogisticsTabProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
+                      <Zap className={`w-4 h-4 ${active ? 'text-indigo-400' : 'text-zinc-500'}`} />
+                      {active && <CheckCircle2 className="w-4 h-4 text-indigo-400" />}
+                    </div>
+                    <p className="text-xs font-extrabold text-white leading-snug">{st.title}</p>
+                    <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{st.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-zinc-300">
+                Step 2: Check the requests to include in this delivery run
+              </label>
+              <span className="text-xs font-bold text-indigo-300 bg-indigo-500/15 px-3 py-0.5 rounded-full border border-indigo-500/30">
+                {selectedCompetingIds.length} Selected
+              </span>
+            </div>
+            <div className="content-scroll space-y-2 max-h-56 overflow-y-auto pr-1">
+              {requests
+                .filter((r) => r.status !== 'MergedAsDuplicate')
+                .map((r) => {
+                  const isChecked = selectedCompetingIds.includes(r.id);
+                  return (
+                    <label
+                      key={r.id}
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border text-xs cursor-pointer transition-all ${
+                        isChecked
+                          ? 'bg-indigo-500/15 border-indigo-500/60 text-white'
+                          : 'bg-white/[0.02] border-white/[0.07] text-zinc-300 hover:bg-white/[0.05]'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => onToggleCompetingRequest(r.id)}
+                          className="mt-0.5 w-4 h-4 rounded border-white/20 bg-black/40 text-indigo-500"
+                        />
+                        <div>
+                          <span className="font-mono font-bold text-indigo-300">{r.referenceCode}</span> —{' '}
+                          <span className="font-bold text-white">{r.title}</span>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                            {r.category} • Urgency: <strong className="text-zinc-200">{r.finalApprovedUrgency}</strong> • Quantity Needed:{' '}
+                            <strong className="font-mono text-emerald-300">{r.requestedQuantity} units</strong>
+                          </p>
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-1">
+            <motion.button
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => onRunAllocation(false)}
+              className="flex-1 py-3 px-4 rounded-2xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition"
+            >
+              <Eye className="w-4 h-4 text-indigo-400" />
+              <span>1. Preview Delivery Plan</span>
+            </motion.button>
+            {canDispatch && (
+              <motion.button
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => onRunAllocation(true)}
+                className="keep-white flex-1 py-3 px-4 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition"
+              >
+                <Truck className="w-4 h-4" />
+                <span>2. Confirm & Dispatch Supplies</span>
+              </motion.button>
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-6 bento-glass rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/[0.08]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center">
+                <Truck className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Recommended Delivery Breakdown
+                </span>
+                <h3 className="text-lg font-extrabold text-white">Supply Allocation Plan Results</h3>
+              </div>
+            </div>
+            {allocationPlanResult && (
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                {allocationPlanResult.strategyUsed}
+              </span>
+            )}
+          </div>
+
+          <AnimatePresence mode="wait">
+            {allocationPlanResult ? (
+              <motion.div
+                key={allocationPlanResult.strategyUsed + allocationPlanResult.totalAllocatedAcrossCases}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="space-y-4 text-xs"
+              >
+                <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-extrabold text-white text-sm">
+                      Rule Used: {allocationPlanResult.strategyUsed}
+                    </p>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                        allocationPlanResult.shortageEncountered
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      }`}
+                    >
+                      {allocationPlanResult.shortageEncountered ? (
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                      {allocationPlanResult.shortageEncountered ? 'Stock Shortage Handled' : 'Full Stock Available'}
+                    </span>
+                  </div>
+                  <p className="text-zinc-300 leading-relaxed">
+                    {allocationPlanResult.architecturalExplanation}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2.5 pt-2">
+                    <div className="bg-black/25 p-3 rounded-xl border border-white/10">
+                      <span className="text-[11px] font-bold text-zinc-400 block">Total Requested</span>
+                      <strong className="font-mono text-base text-white">
+                        {allocationPlanResult.totalRequestedAcrossCases} units
+                      </strong>
+                    </div>
+                    <div className="bg-black/25 p-3 rounded-xl border border-emerald-500/30">
+                      <span className="text-[11px] font-bold text-emerald-400 block">Ready to Send</span>
+                      <strong className="font-mono text-base text-emerald-300">
+                        {allocationPlanResult.totalAllocatedAcrossCases} units
+                      </strong>
+                    </div>
+                    <div className="bg-black/25 p-3 rounded-xl border border-rose-500/30">
+                      <span className="text-[11px] font-bold text-rose-400 block">Remaining Shortage</span>
+                      <strong className="font-mono text-base text-rose-400">
+                        {allocationPlanResult.totalUnmetShortfall} units
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 content-scroll">
+                  {allocationPlanResult.allocations.map((item: any) => {
+                    const fillPct = Math.min(
+                      100,
+                      Math.round((item.allocatedQuantity / Math.max(1, item.requestedQuantity)) * 100)
+                    );
+                    return (
+                      <div
+                        key={item.assistanceRequestId}
+                        className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-2"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-extrabold text-white font-mono text-sm">
+                            {item.requestReferenceCode}{' '}
+                            <span className="font-sans text-xs font-bold text-indigo-300">
+                              (Urgency: {item.urgency})
+                            </span>
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full font-mono font-bold bg-emerald-500/20 border border-emerald-500/40 text-emerald-300">
+                            Sending {item.allocatedQuantity} of {item.requestedQuantity} units ({fillPct}%)
+                          </span>
+                        </div>
+                        <div className="relative pt-2.5 pb-1">
+                          <motion.div
+                            initial={{ left: '0%' }}
+                            animate={{ left: `calc(${Math.max(4, fillPct)}% - 12px)` }}
+                            transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] as const }}
+                            className="absolute -top-0.5 w-6 h-6 rounded-full bg-indigo-600 border border-indigo-300/70 shadow-md flex items-center justify-center keep-white z-10"
+                          >
+                            <Truck className="w-3 h-3 text-white" />
+                          </motion.div>
+                          <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${fillPct}%` }}
+                              transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] as const }}
+                              className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full crisync-shimmer-bar"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-zinc-400 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-indigo-400" />
+                            From Warehouse: <strong className="text-zinc-200">{item.warehouseName}</strong> ({item.distanceKm} km away)
+                          </span>
+                        </p>
+                        <p className="text-amber-200 font-semibold bg-amber-500/15 px-3 py-1.5 rounded-xl border border-amber-500/30">
+                          Next Step: {item.alternativeRecommendation}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            ) : (
+              <div className="p-8 rounded-2xl bg-black/20 border border-dashed border-white/15 text-center space-y-3">
+                <Eye className="w-7 h-7 text-indigo-400 mx-auto" />
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  Click <strong>"1. Preview Delivery Plan"</strong> on the left (or below) to see how supplies will be divided across your selected requests before dispatching.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onRunAllocation(false)}
+                  className="keep-white px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-sm"
+                >
+                  Generate Preview Plan Now
+                </button>
+              </div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-8 bento-glass rounded-3xl p-5 sm:p-6">
+          <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/[0.08]">
+            <div>
+              <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2.5">
+                <Warehouse className="w-5 h-5 text-indigo-400" />
+                Current Warehouse Stock & Cold-Storage Inventory
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Live inventory levels across regional relief depots, including refrigerated medicine stock.
+              </p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-xs font-bold text-indigo-300">
+              {resources.length} Items in Stock
+            </span>
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-white/[0.08]">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.08] text-zinc-400 bg-white/[0.03] uppercase tracking-wider text-[11px] font-bold">
+                  <th className="py-3.5 px-4">Supply Item</th>
+                  <th className="py-3.5 px-4">Category</th>
+                  <th className="py-3.5 px-4">Warehouse Location</th>
+                  <th className="py-3.5 px-4">Available / Total</th>
+                  <th className="py-3.5 px-4">Storage Type</th>
+                  <th className="py-3.5 px-4">Expiry Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.06]">
+                {resources.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 px-4 text-center text-xs text-zinc-400">
+                      No relief warehouse inventory added yet. Add incoming medical, food, water, or shelter stock using the panel on the right.
+                    </td>
+                  </tr>
+                )}
+                {resources.map((r) => (
+                  <tr key={r.id} className="hover:bg-white/[0.03] transition-colors">
+                    <td className="py-3.5 px-4 font-bold text-white">{r.name}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-zinc-200 font-semibold">
+                        {r.category}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-zinc-300">{r.warehouseName}</td>
+                    <td className="py-3.5 px-4 font-mono">
+                      <div>
+                        <span className="font-extrabold text-emerald-300">{r.availableQuantity}</span> /{' '}
+                        {r.totalQuantity} <span className="font-sans text-zinc-400">{r.unit}</span>
+                      </div>
+                      {canDispatch && onReplenishResource && (
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <input
+                            type="number"
+                            min={1}
+                            value={replenishAmounts[r.id] ?? 25}
+                            onChange={(e) =>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
