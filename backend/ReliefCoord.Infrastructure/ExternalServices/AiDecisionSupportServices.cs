@@ -207,5 +207,169 @@ public class PrimaryEnsembleAiService : IAiDecisionSupportService
         double targetLat,
         double targetLon,
         IReadOnlyList<VolunteerProfile> volunteers,
+        CancellationToken cancellationToken = default)
+    {
+        string normalizedSkill = requiredSkill.Trim().ToLowerInvariant();
+        var list = volunteers
+            .Where(v => v.IsAvailable && v.IsVerified)
+            .Select(v =>
+            {
+                bool hasSkill = v.SkillsCsv.ToLowerInvariant().Contains(normalizedSkill);
+                double dist = _mappingService.CalculateDistanceKm(targetLat, targetLon, v.CurrentLatitude, v.CurrentLongitude);
+                double score = Math.Round((hasSkill ? 60.0 : 20.0) + Math.Max(0, 40.0 - dist * 0.8), 1);
+
+                return new AiVolunteerCandidateDto(
+                    v.Id,
+                    v.FullName,
+                    v.SkillsCsv,
+                    Math.Round(dist, 2),
+                    score,
+                    hasSkill
+                        ? $"Verified match for '{requiredSkill}' ({dist:F1} km away, {v.CompletedTasksCount} prior deployments)."
+                        : $"General responder available ({dist:F1} km away)."
+                );
+            })
+            .OrderByDescending(x => x.MatchScore)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<AiVolunteerCandidateDto>>(list);
     }
+
+    public Task<IReadOnlyList<DemandForecastItemDto>> ForecastResourceDemandAsync(
+        Guid crisisEventId,
+        IReadOnlyList<AssistanceRequest> recentRequests,
+        IReadOnlyList<ResourceItem> currentInventory,
+        CancellationToken cancellationToken = default)
+    {
+        var categories = Enum.GetValues<RequestCategory>();
+        var forecasts = new List<DemandForecastItemDto>();
+
+        foreach (var cat in categories)
+        {
+            var catRequests = recentRequests.Where(r => r.Category == cat).ToList();
+            int currentRequested = catRequests.Sum(r => r.RequestedQuantity);
+            int predicted48h = Math.Max(120, (int)Math.Round(currentRequested * 1.65 + (catRequests.Count * 28)));
+            int availableStock = currentInventory.Where(i => i.Category == cat).Sum(i => i.AvailableQuantity);
+            int deficit = Math.Max(0, predicted48h - availableStock);
+            string risk = deficit > 100 ? "CriticalShortageProjected" : (deficit > 0 ? "ModerateDeficitRisk" : "AdequateBuffer");
+
+            forecasts.Add(new DemandForecastItemDto(
+                cat.ToString(),
+                catRequests.Count,
+                currentRequested,
+                predicted48h,
+                availableStock,
+                deficit,
+                risk,
+                0.87
+            ));
+        }
+
+        return Task.FromResult<IReadOnlyList<DemandForecastItemDto>>(
+            forecasts.OrderByDescending(f => f.ProjectedDeficit).ToList());
+    }
+
+    public Task<MultilingualBriefingDto> GenerateMultilingualBriefingAsync(
+        CrisisEvent crisis,
+        int openRequestsCount,
+        int criticalCount,
+        string languageCode,
+        CancellationToken cancellationToken = default)
+    {
+        string lang = (languageCode ?? "en").ToLowerInvariant();
+        var (langName, headline, summary, advisory) = lang switch
+        {
+            "si" => (
+                "Sinhala (සිංහල)",
+                $"හදිසි ආපදා මෙහෙයුම් වාර්තාව: {crisis.Title}",
+                $"දැනට විවෘත ඉල්ලීම් {openRequestsCount} ක් සහ අතිශය තීරණාත්මක අවස්ථා {criticalCount} ක් ක්‍රියාත්මක වේ. සියලුම AI නිර්දේශ බලයලත් නිලධාරීන්ගේ අනුමැතියට යටත් වේ.",
+                "කරුණාකර අනුමත ආරක්ෂිත මධ්‍යස්ථාන වෙත යොමු වන්න. හදිසි ආහාර සහ වෛද්‍ය ආධාර බෙදාහැරීම අඛණ්ඩව සිදු කෙරේ."
+            ),
+            "ta" => (
+                "Tamil (தமிழ்)",
+                $"அவசர பேரிடர் செயல்பாட்டு அறிக்கை: {crisis.Title}",
+                $"தற்போது {openRequestsCount} திறந்த கோரிக்கைகளும் {criticalCount} அதிமுக்கிய வழக்குகளும் உள்ளன. அனைத்து AI பரிந்துரைகளும் மனித மேற்பார்வைக்கு உட்பட்டவை.",
+                "அங்கீகரிக்கப்பட்ட பாதுகாப்பான முகாம்களுக்குச் செல்லவும். மருத்துவ மற்றும் உணவு நிவாரணப் பணிகள் நடைபெற்று வருகின்றன."
+            ),
+            "es" => (
+                "Spanish (Español)",
+                $"Informe Operativo de Crisis: {crisis.Title}",
+                $"Se registran {openRequestsCount} solicitudes activas y {criticalCount} casos críticos en {crisis.Region}. Todas las asignaciones críticas requieren supervisión humana.",
+                "Diríjase a los refugios verificados más cercanos y mantenga activas las alertas oficiales."
+            ),
+            "fr" => (
+                "French (Français)",
+                $"Bulletin Opérationnel de Crise : {crisis.Title}",
+                $"Il y a actuellement {openRequestsCount} demandes ouvertes dont {criticalCount} cas critiques dans la région de {crisis.Region}.",
+                "Veuillez rejoindre les centres d'hébergement vérifiés et suivre les consignes d'évacuation."
+            ),
+            "ar" => (
+                "Arabic (العربية)",
+                $"موجز العمليات الإنسانية الطارئة: {crisis.Title}",
+                $"يوجد حالياً {openRequestsCount} طلباً مفتوحاً و {criticalCount} حالة حرجة. تخضع جميع توصيات الذكاء الاصطناعي لمراجعة المنسقين المعتمدين.",
+                "يرجى التوجه إلى مراكز الإيواء المعتمدة واتباع إرشادات السلامة الرسمية."
+            ),
+            _ => (
+                "English",
+                $"Operational Crisis Briefing: {crisis.Title} ({crisis.Severity})",
+                $"Active multi-agency response across {crisis.Region}, {crisis.Country}. Tracking {openRequestsCount} open assistance cases including {criticalCount} Critical/Life-Threatening priorities under strict Human-in-the-Loop governance.",
+                "Citizens in affected flood and landslide zones should proceed to verified accessible shelters and monitor SMS/In-App advisories."
+            )
+        };
+
+        return Task.FromResult(new MultilingualBriefingDto(
+            crisis.Id,
+            lang,
+            langName,
+            headline,
+            summary,
+            advisory,
+            ProviderName
+        ));
+    }
+
+    private static double ComputeJaccardSimilarity(string textA, string textB)
+    {
+        var tokensA = textA.Split(new[] { ' ', ',', '.', ';', '-', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 2)
+            .ToHashSet();
+        var tokensB = textB.Split(new[] { ' ', ',', '.', ';', '-', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Where(t => t.Length > 2)
+            .ToHashSet();
+
+        if (!tokensA.Any() || !tokensB.Any())
+    }
+}
+
+internal static class LegacyCrisisDraftMapper
+{
+    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
+    {
+        >= 5 => "LIFE_THREATENING",
+        4 => "CRITICAL",
+        3 => "HIGH",
+        2 => "MEDIUM",
+        _ => "LOW"
+    };
+
+    internal static string BuildCompositeKey(string district, string category, string title)
+    {
+        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
+        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
+        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
+        return $"{d}::{c}::{t.GetHashCode():X8}";
+    }
+
+    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    {
+        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
+        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
+        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
+        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+    }
+
+    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    {
+        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
+    };
 }
