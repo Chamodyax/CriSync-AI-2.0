@@ -238,5 +238,155 @@ export const AiGovernanceTab: React.FC<AiGovernanceTabProps> = ({
     </div>
   );
 
+  if (!canApproveOrOverrideAi) {
+    return (
+      <div className="space-y-6">
+        {demandForecastSection}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7 bento-glass rounded-3xl p-5 sm:p-6 space-y-4">
+          <div className="flex items-center gap-3 pb-4 border-b border-white/[0.08]">
+            <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
+                Transparent AI Priority Scoring
+              </span>
+              <h2 className="text-lg font-extrabold text-white">
+                Why the AI Ranked Each Request & Score Breakdown
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Review how points were calculated for each request. Staff always have the final say and can approve or adjust any score.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {recommendations.length === 0 && (
+              <div className="p-6 rounded-2xl bg-black/20 border border-dashed border-white/15 text-center text-xs text-zinc-400">
+                No AI priority recommendations yet. Recommendations are generated automatically whenever a Citizen submits a help request under an active Crisis Event.
+              </div>
+            )}
+            {recommendations.map((rec, index) => {
+              let factors: Record<string, number> = {};
+              try {
+                factors = JSON.parse(rec.explainableFactorsJson || '{}');
+              } catch {
+                factors = {};
+              }
+              const isSelected = selectedRecommendation?.id === rec.id;
+              const confidencePct = Math.round(rec.confidenceScore * 100);
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, delay: Math.min(index * 0.04, 0.2) }}
+                  key={rec.id}
+                  className={`p-5 rounded-3xl border space-y-3.5 transition-all ${
+                    isSelected
+                      ? 'bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent border-2 border-indigo-500 shadow-glow'
+                      : 'bg-white/[0.025] border-white/[0.08] hover:border-white/20'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <span>{confidencePct}%</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-200">
+                          <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                          Suggested: {rec.recommendedUrgency} ({rec.recommendedCategory})
+                        </span>
+                        <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                          Status: {rec.governanceStatus}
+                        </span>
+                      </div>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => {
+                        onSelectRecommendation(rec);
+                        setCategory(rec.recommendedCategory);
+                        setUrgency(rec.recommendedUrgency);
+                        setTimeout(() => {
+                          reviewFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 80);
+                      }}
+                      className="keep-white px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm"
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>Review or Adjust Score</span>
+                    </motion.button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                      1. AI Analyzed
+                    </span>
+                    <ArrowRight className="w-3 h-3 text-zinc-500" />
+                    <span
+                      className={`px-2.5 py-1 rounded-lg border ${
+                        rec.humanDecision
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                          : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                      }`}
+                    >
+                      2. {rec.humanDecision ? `Human ${rec.humanDecision.actionTaken}` : 'Pending Human Review'}
+                    </span>
+                    <ArrowRight className="w-3 h-3 text-zinc-500" />
+                    <span
+                      className={`px-2.5 py-1 rounded-lg border ${
+                        rec.humanDecision
+                          ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300'
+                          : 'bg-white/[0.04] border-white/10 text-zinc-400'
+                      }`}
+                    >
+                      3. Immutable Audit Trail
+                    </span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed">{rec.rationale}</p>
+
+                  <div>
+                    <p className="text-[11px] font-bold text-zinc-400 mb-2">
+                      How the AI calculated this priority score:
+                    </p>
   );
 };
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
