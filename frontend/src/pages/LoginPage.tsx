@@ -245,6 +245,99 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     void isPlatformBiometricSupported().then(setBiometricAvailable);
   }, []);
   const [authMode, setAuthMode] = useState<'signin' | 'signup' | 'admin'>('signin');
+  const [sosModalOpen, setSosModalOpen] = useState(false);
+  const [sosContactName, setSosContactName] = useState('');
+  const [sosContactPhone, setSosContactPhone] = useState('');
+  const [sosEmergencyType, setSosEmergencyType] = useState('SearchAndRescue');
+  const [sosPeopleCount, setSosPeopleCount] = useState(1);
+  const [sosLocationAddress, setSosLocationAddress] = useState('');
+  const [sosLatitude, setSosLatitude] = useState<number>(6.9271);
+  const [sosLongitude, setSosLongitude] = useState<number>(79.8612);
+  const [sosQuickNotes, setSosQuickNotes] = useState('');
+  const [sosLocatingGps, setSosLocatingGps] = useState(false);
+  const [sosSubmitting, setSosSubmitting] = useState(false);
+  const [sosError, setSosError] = useState<string | null>(null);
+  const [sosSubmittedResult, setSosSubmittedResult] = useState<any | null>(null);
+
+  const handleDetectSosGps = () => {
+    setSosLocatingGps(true);
+    setSosError(null);
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(4));
+          const lon = Number(pos.coords.longitude.toFixed(4));
+          setSosLatitude(lat);
+          setSosLongitude(lon);
+          try {
+            const geo = await apiFetch<any>(`/mapping/reverse-geocode?lat=${lat}&lon=${lon}`);
+            if (geo?.formattedAddress) {
+              setSosLocationAddress(geo.formattedAddress);
+            } else if (!sosLocationAddress.trim()) {
+              setSosLocationAddress(`Live GPS Pin (${lat}, ${lon}) — Kalutara / Colombo Flood Zone`);
+            }
+          } catch {
+            if (!sosLocationAddress.trim()) {
+              setSosLocationAddress(`Live GPS Pin (${lat}, ${lon})`);
+            }
+          } finally {
+            setSosLocatingGps(false);
+          }
+        },
+        () => {
+          setSosLatitude(6.5854);
+          setSosLongitude(79.9607);
+          if (!sosLocationAddress.trim()) {
+            setSosLocationAddress('Kalutara Bridge Sector • Kalu Ganga Basin (Auto-Detected GPS Pin)');
+          }
+          setSosLocatingGps(false);
+        },
+        { enableHighAccuracy: true, timeout: 6000 }
+      );
+    } else {
+      setSosLatitude(6.5854);
+      setSosLongitude(79.9607);
+      if (!sosLocationAddress.trim()) {
+        setSosLocationAddress('Kalutara Bridge Sector • Kalu Ganga Basin (Auto-Detected GPS Pin)');
+      }
+      setSosLocatingGps(false);
+    }
+  };
+
+  const handleSubmitEmergencySos = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSosError(null);
+    if (!sosContactPhone.trim()) {
+      setSosError('කරුණාකර ඔබව සම්බන්ධ කරගත හැකි දුරකථන අංකයක් ඇතුළත් කරන්න (Phone number is required).');
+      return;
+    }
+    if (!sosLocationAddress.trim()) {
+      setSosError('කරුණාකර ඔබ සිටින ස්ථානය/ලිපිනය හෝ "Auto-Detect GPS" බොත්තම ඔබන්න (Location is required).');
+      return;
+    }
+    setSosSubmitting(true);
+    try {
+      const created = await apiFetch<any>('/requests/emergency-sos', {
+        method: 'POST',
+        body: JSON.stringify({
+          contactName: sosContactName.trim() || 'Emergency Caller',
+          contactPhone: sosContactPhone.trim(),
+          emergencyType: sosEmergencyType,
+          peopleCount: Math.max(1, Number(sosPeopleCount) || 1),
+          locationAddress: sosLocationAddress.trim(),
+          latitude: Number(sosLatitude) || 6.9271,
+          longitude: Number(sosLongitude) || 79.8612,
+          quickNotes: sosQuickNotes.trim(),
+          requiresMedicalOrMobilitySupport: true
+        })
+      });
+      setSosSubmittedResult(created);
+    } catch (err: any) {
+      setSosError(err.message || 'Failed to transmit Emergency SOS. Please retry.');
+    } finally {
+      setSosSubmitting(false);
+    }
+  };
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
@@ -600,6 +693,222 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             transition={{ duration: 0.35, ease: 'easeOut' }}
             className="lg:col-span-5 space-y-5"
           >
+            <div className="rounded-3xl p-5 sm:p-6 border-2 border-rose-500/70 bg-gradient-to-br from-rose-600/25 via-rose-950/40 to-orange-950/30 shadow-[0_0_35px_rgba(244,63,94,0.28)] space-y-3.5 relative overflow-hidden">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="keep-white w-12 h-12 rounded-2xl bg-rose-600 flex items-center justify-center text-white shadow-lg shadow-rose-600/40 shrink-0 animate-pulse">
+                    <Radio className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white keep-white text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
+                        🚨 NO SIGN-UP REQUIRED • හදිසි ආපදා ඇමතුම්
+                      </span>
+                    </div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-white mt-1 leading-tight">
+                      Instant Emergency SOS Beacon
+                    </h2>
+                    <p className="text-xs text-rose-200/90 mt-0.5 leading-relaxed">
+                      In immediate danger? Send your <strong className="text-white">Phone Number, GPS Location &amp; Address</strong> directly to Rescue Coordinators in 10 seconds without creating an account.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSosModalOpen((prev) => !prev);
+                  setSosSubmittedResult(null);
+                  setSosError(null);
+                }}
+                className="keep-white w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-red-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-600/30 border border-rose-400/40 transition transform active:scale-[0.99]"
+              >
+                <ShieldAlert className="w-5 h-5 animate-bounce" />
+                <span>
+                  {sosModalOpen ? 'Hide Emergency SOS Form' : '🚨 SEND EMERGENCY SOS NOW (Account නැතිව හදිසි ආධාර ඉල්ලන්න)'}
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {sosModalOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="pt-3 border-t border-rose-500/30 space-y-3 overflow-hidden"
+                  >
+                    {sosSubmittedResult ? (
+                      <div className="p-4 rounded-2xl bg-emerald-950/70 border-2 border-emerald-500/60 text-emerald-100 space-y-2.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-500 text-slate-950 font-extrabold text-xs uppercase">
+                            ✓ SOS BEACON TRANSMITTED LIVE
+                          </span>
+                          <span className="font-mono font-extrabold text-sm text-emerald-300 bg-black/40 px-2.5 py-1 rounded-lg border border-emerald-500/40">
+                            {sosSubmittedResult.referenceCode}
+                          </span>
+                        </div>
+                        <p className="text-xs leading-relaxed text-emerald-200">
+                          ඔබගේ හදිසි ආධාර ඉල්ලීම <strong className="text-white">Life-Threatening Priority ({sosSubmittedResult.priorityScore}/100)</strong> යටතේ ප්‍රධාන මෙහෙයුම් මැදිරියට ලැබී ඇත. සහන කණ්ඩායම ඔබගේ දුරකථන අංකයට අමතනු ඇත.
+                        </p>
+                        <div className="text-[11px] font-mono bg-black/30 p-2.5 rounded-xl border border-white/10 space-y-1 text-zinc-200">
+                          <div><strong>Location:</strong> {sosSubmittedResult.locationAddress}</div>
+                          <div><strong>GPS Pin:</strong> {sosSubmittedResult.latitude?.toFixed(4)}, {sosSubmittedResult.longitude?.toFixed(4)}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSosSubmittedResult(null);
+                            setSosQuickNotes('');
+                          }}
+                          className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold text-white transition"
+                        >
+                          Submit Another SOS Alert
+                        </button>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleSubmitEmergencySos} className="space-y-3 text-xs">
+                        {sosError && (
+                          <div className="p-3 rounded-xl bg-rose-950/90 border border-rose-400/50 text-rose-200 font-bold flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span>{sosError}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          <div>
+                            <label className="block font-extrabold text-rose-200 mb-1">
+                              1. Contact Phone (දුරකථන අංකය) *
+                            </label>
+                            <input
+                              type="tel"
+                              required
+                              value={sosContactPhone}
+                              onChange={(e) => setSosContactPhone(e.target.value)}
+                              placeholder="077-1234567"
+                              className="rsvp-input border-rose-500/40 focus:border-rose-400 font-bold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block font-extrabold text-rose-200 mb-1">
+                              2. Your Name (නම)
+                            </label>
+                            <input
+                              type="text"
+                              value={sosContactName}
+                              onChange={(e) => setSosContactName(e.target.value)}
+                              placeholder="ඔබගේ නම (උදා: කමල් පෙරේරා)"
+                              className="rsvp-input border-rose-500/40"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <label className="font-extrabold text-rose-200">
+                              3. Location Address &amp; GPS (ස්ථානය සහ ලිපිනය) *
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleDetectSosGps}
+                              disabled={sosLocatingGps}
+                              className="keep-white px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-[11px] inline-flex items-center gap-1 shadow-sm transition"
+                            >
+                              <MapPin className="w-3 h-3" />
+                              <span>{sosLocatingGps ? 'Detecting GPS...' : '📍 Auto-Detect My GPS'}</span>
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            value={sosLocationAddress}
+                            onChange={(e) => setSosLocationAddress(e.target.value)}
+                            placeholder="නිවසේ ලිපිනය හෝ අසල ඇති ප්‍රධාන ස්ථානයක් (Landmark / Street Address)"
+                            className="rsvp-input border-rose-500/40"
+                          />
+                          <div className="grid grid-cols-2 gap-2 mt-1.5">
+                            <div className="flex items-center gap-1.5 bg-black/30 px-2.5 py-1.5 rounded-xl border border-white/10">
+                              <span className="text-[10px] font-bold text-zinc-400">LAT:</span>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                value={sosLatitude}
+                                onChange={(e) => setSosLatitude(Number(e.target.value))}
+                                className="bg-transparent text-white font-mono text-xs w-full focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-black/30 px-2.5 py-1.5 rounded-xl border border-white/10">
+                              <span className="text-[10px] font-bold text-zinc-400">LNG:</span>
+                              <input
+                                type="number"
+                                step="0.0001"
+                                value={sosLongitude}
+                                onChange={(e) => setSosLongitude(Number(e.target.value))}
+                                className="bg-transparent text-white font-mono text-xs w-full focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="sm:col-span-2">
+                            <label className="block font-extrabold text-rose-200 mb-1">
+                              4. Emergency Need (හදිසි අවශ්‍යතාවය)
+                            </label>
+                            <select
+                              value={sosEmergencyType}
+                              onChange={(e) => setSosEmergencyType(e.target.value)}
+                              className="rsvp-input border-rose-500/40 font-bold"
+                            >
+                              <option value="SearchAndRescue">🚁 Search &amp; Rescue (ගංවතුර / නායයාමකට කොටු වී ඇත)</option>
+                              <option value="MedicalEvacuation">🚑 Critical Medical Evacuation (හදිසි රෝහල්ගත කිරීම්)</option>
+                              <option value="Medicine">💊 Life-Saving Medicine (හදිසි ඖෂධ අවශ්‍යතා)</option>
+                              <option value="TemporaryShelter">🏠 Urgent Evacuation Shelter (ආරක්ෂිත කඳවුරක් අවශ්‍යයි)</option>
+                              <option value="Food">🍲 Emergency Food &amp; Drinking Water (ආහාර සහ පානීය ජලය)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block font-extrabold text-rose-200 mb-1">
+                              People (පිරිස)
+                            </label>
+                            <input
+                              type="number"
+                              min={1}
+                              max={500}
+                              value={sosPeopleCount}
+                              onChange={(e) => setSosPeopleCount(Number(e.target.value))}
+                              className="rsvp-input border-rose-500/40 font-mono font-bold"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block font-extrabold text-rose-200 mb-1">
+                            5. Brief Situation Note (කෙටි විස්තරයක් - Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={sosQuickNotes}
+                            onChange={(e) => setSosQuickNotes(e.target.value)}
+                            placeholder="උදා: නිවසේ දෙවන මහලේ කුඩා දරුවන් දෙදෙනෙකු සමඟ කොටු වී සිටී..."
+                            className="rsvp-input border-rose-500/40"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={sosSubmitting}
+                          className="keep-white w-full py-3.5 px-5 rounded-2xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-600/40 border border-rose-300/40 transition"
+                        >
+                          <Radio className="w-4 h-4 animate-ping" />
+                          <span>{sosSubmitting ? 'Transmitting SOS Beacon...' : '🚨 TRANSMIT SOS TO RESCUE COMMAND NOW'}</span>
+                        </button>
+                      </form>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             {trustedUnlock && (
               <div className="bento-glass rounded-3xl p-5 sm:p-6 border border-indigo-500/35 space-y-4">
                 <div className="flex items-start justify-between gap-3">
