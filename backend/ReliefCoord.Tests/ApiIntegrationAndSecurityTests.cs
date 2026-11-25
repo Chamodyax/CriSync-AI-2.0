@@ -211,35 +211,218 @@ public class ApiIntegrationAndSecurityTests : IClassFixture<CriSyncWebApplicatio
         ));
 
         Assert.Equal(HttpStatusCode.BadRequest, badResp.StatusCode);
-}
-
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
     }
 
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    [Fact]
+    public async Task VolunteerWorkflow_AvailabilityAcceptAndComplete_IncrementsCompletedCount()
     {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
+        using var coordClient = _factory.CreateClient();
+        await LoginAsAsync(coordClient, "volunteer@crisync.org", "Crisync@2026");
 
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
+        using var volClient = _factory.CreateClient();
+        await LoginAsAsync(volClient, "fieldvolunteer@crisync.org", "Crisync@2026");
+
+        var availResp = await volClient.PutAsJsonAsync("/api/volunteers/me/availability", new UpdateVolunteerAvailabilityDto(
+            true,
+            "Mon-Sun 07:00-23:00 Rapid Response"
+        ));
+        Assert.Equal(HttpStatusCode.OK, availResp.StatusCode);
+        var updatedProfile = await availResp.Content.ReadFromJsonAsync<VolunteerProfile>(JsonOptions);
+        Assert.NotNull(updatedProfile);
+        int initialCompleted = updatedProfile!.CompletedTasksCount;
+
+        var assignResp = await coordClient.PostAsJsonAsync("/api/volunteers/assign", new AssignVolunteerTaskDto(
+            updatedProfile.Id,
+            Guid.Parse("66666666-6666-6666-6666-666666666611"),
+            "Deliver Cold-Chain Insulin Pack",
+            "Field Medical Aid"
+        ));
+        assignResp.EnsureSuccessStatusCode();
+        var assignment = await assignResp.Content.ReadFromJsonAsync<VolunteerTaskAssignment>(JsonOptions);
+        Assert.NotNull(assignment);
+        Assert.NotEqual(92.4, assignment!.AiMatchScore);
+
+        var respondResp = await volClient.PostAsJsonAsync($"/api/volunteers/assignments/{assignment.Id}/respond",
+            new RespondVolunteerAssignmentDto("Accepted", "En route now"));
+        Assert.Equal(HttpStatusCode.OK, respondResp.StatusCode);
+
+        var completeResp = await volClient.PostAsJsonAsync($"/api/volunteers/assignments/{assignment.Id}/complete",
+            new CompleteVolunteerAssignmentDto("Delivered safely to Kalu Ganga Clinic nurse"));
+        Assert.Equal(HttpStatusCode.OK, completeResp.StatusCode);
+        var completedAssign = await completeResp.Content.ReadFromJsonAsync<VolunteerTaskAssignment>(JsonOptions);
+        Assert.Equal("Completed", completedAssign!.Status);
+
+        var volData = await volClient.GetFromJsonAsync<JsonElement>("/api/volunteers", JsonOptions);
+        var tharushi = volData.GetProperty("volunteers").EnumerateArray()
+            .First(v => v.GetProperty("id").GetGuid() == updatedProfile.Id);
+        Assert.Equal(initialCompleted + 1, tharushi.GetProperty("completedTasksCount").GetInt32());
     }
 
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    [Fact]
+    public async Task DonationWorkflow_ExpenditureTracking_UpdatesDisbursedAndTransparencyReport_AndBlocksOverdraft()
     {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
+        using var donorClient = _factory.CreateClient();
+        await LoginAsAsync(donorClient, "donor@crisync.org", "Crisync@2026");
+
+        var campaignId = Guid.Parse("99999999-9999-9999-9999-999999999911");
+
+        var overdraftResp = await donorClient.PostAsJsonAsync($"/api/donations/campaigns/{campaignId}/expenditures",
+            new CreateCampaignExpenditureDto(9999999m, "MedicalSupplies", "Overdraft test"));
+        Assert.Equal(HttpStatusCode.Conflict, overdraftResp.StatusCode);
+
+        var okResp = await donorClient.PostAsJsonAsync($"/api/donations/campaigns/{campaignId}/expenditures",
+            new CreateCampaignExpenditureDto(3500m, "WaterLogistics", "Purification tablet batch purchase"));
+        Assert.Equal(HttpStatusCode.OK, okResp.StatusCode);
+
+        var report = await donorClient.GetFromJsonAsync<JsonElement>("/api/donations/transparency-report", JsonOptions);
+        Assert.True(report.GetProperty("totalDisbursedUsd").GetDecimal() >= 115500m);
+        Assert.True(report.GetProperty("expenditureByCategory").TryGetProperty("WaterLogistics", out _));
+    }
+
+    [Fact]
+    public async Task DonationWorkflow_DynamicHighValueThreshold_AndRejectAction()
+    {
+        using var adminFactory = new CriSyncWebApplicationFactory();
+        using var adminClient = adminFactory.CreateClient();
+        await LoginAsAsync(adminClient, "admin@crisync.org", "Admin@Crisync2026");
+
+        var cfgResp = await adminClient.PutAsJsonAsync("/api/admin/system-config", new SystemGovernanceConfigDto(
+            2, 3, 3, true, true, 15000m
+        ));
+        Assert.Equal(HttpStatusCode.OK, cfgResp.StatusCode);
+
+        var campaignId = Guid.Parse("99999999-9999-9999-9999-999999999911");
+        var donateResp = await adminClient.PostAsJsonAsync("/api/donations", new CreateDonationDto(
+            campaignId,
+            "Dynamic Threshold Donor",
+            "Monetary",
+            20000m,
+            string.Empty,
+            0,
+            "Emergency Shelter Fuel",
+            "4242"
+        ));
+        donateResp.EnsureSuccessStatusCode();
+        var record = await donateResp.Content.ReadFromJsonAsync<DonationRecord>(JsonOptions);
+        Assert.NotNull(record);
+        Assert.True(record!.IsFlaggedSuspicious);
+        Assert.Contains("$15,000", record.SuspiciousReason);
+
+        var rejectResp = await adminClient.PostAsync($"/api/donations/{record.Id}/reject", null);
+        Assert.Equal(HttpStatusCode.OK, rejectResp.StatusCode);
+        var rejected = await rejectResp.Content.ReadFromJsonAsync<DonationRecord>(JsonOptions);
+        Assert.Equal("ComplianceRejected", rejected!.VerificationStatus);
+    }
+
+    [Fact]
+    public async Task ShelterSupplyRequest_AndConcurrentAllocation_PreventOverAllocation()
+    {
+        using var client1 = _factory.CreateClient();
+        await LoginAsAsync(client1, "shelter@crisync.org", "Crisync@2026");
+
+        var shelterId = Guid.Parse("44444444-4444-4444-4444-444444444413");
+        var supplyResp = await client1.PostAsJsonAsync($"/api/shelters/{shelterId}/request-supplies",
+            new RequestShelterSuppliesDto(RequestCategory.Food, "Hot Meal Ration Kits", 120, "High influx of evacuees"));
+        Assert.Equal(HttpStatusCode.OK, supplyResp.StatusCode);
+
+        using var createClient = _factory.CreateClient();
+        await LoginAsAsync(createClient, "admin@crisync.org", "Admin@Crisync2026");
+        var createShelterResp = await createClient.PostAsJsonAsync("/api/shelters", new CreateShelterDto(
+            "Concurrency Verification Hall",
+            Guid.Parse("33333333-3333-3333-3333-333333333311"),
+            "10 Safe Ground Lane, Kalutara",
+            6.5900,
+            79.9600,
+            10,
+            0,
+            true,
+            true,
+            true,
+            true,
+            true,
+            "Testing Concurrency",
+            "Operational",
+            null
+        ));
+        createShelterResp.EnsureSuccessStatusCode();
+        var createdShelter = await createShelterResp.Content.ReadFromJsonAsync<Shelter>(JsonOptions);
+        Assert.NotNull(createdShelter);
+
+        var req1 = client1.PostAsJsonAsync("/api/shelters/allocate", new AllocateShelterRequestDto(
+            createdShelter!.Id, null, Guid.NewGuid(), "Household Alpha", 6, true));
+        var req2 = createClient.PostAsJsonAsync("/api/shelters/allocate", new AllocateShelterRequestDto(
+            createdShelter.Id, null, Guid.NewGuid(), "Household Beta", 6, true));
+
+        var responses = await Task.WhenAll(req1, req2);
+        int okCount = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
+        int conflictCount = responses.Count(r => r.StatusCode == HttpStatusCode.Conflict);
+        Assert.Equal(1, okCount);
+        Assert.Equal(1, conflictCount);
+    }
+
+    [Fact]
+    public async Task LogisticsWorkflow_ReplenishDeliverAndPartnerAidFulfillment()
+    {
+        using var client = _factory.CreateClient();
+        await LoginAsAsync(client, "logistics@crisync.org", "Crisync@2026");
+
+        var resourceId = Guid.Parse("55555555-5555-5555-5555-555555555515");
+        var beforeResources = await client.GetFromJsonAsync<List<ResourceItem>>("/api/logistics/resources", JsonOptions);
+        int beforeAvail = beforeResources!.First(r => r.Id == resourceId).AvailableQuantity;
+
+        var repResp = await client.PostAsJsonAsync($"/api/logistics/resources/{resourceId}/replenish",
+            new ReplenishResourceDto(15, "Red Cross emergency container"));
+        Assert.Equal(HttpStatusCode.OK, repResp.StatusCode);
+        var updatedRes = await repResp.Content.ReadFromJsonAsync<ResourceItem>(JsonOptions);
+        Assert.Equal(beforeAvail + 15, updatedRes!.AvailableQuantity);
+
+        var partnerPost = await client.PostAsJsonAsync("/api/logistics/partner-aid-requests",
+            new CreatePartnerAidRequestDto(RequestCategory.WaterAndSanitation, "Solar Water Filters", 30, "Sector Alpha urgent shortage"));
+        partnerPost.EnsureSuccessStatusCode();
+        var partnerReq = await partnerPost.Content.ReadFromJsonAsync<PartnerAidRequest>(JsonOptions);
+
+        var fulfillResp = await client.PostAsJsonAsync($"/api/logistics/partner-aid-requests/{partnerReq!.Id}/fulfill",
+            new FulfillPartnerAidRequestDto("Dispatched by MSF vehicle"));
+        Assert.Equal(HttpStatusCode.OK, fulfillResp.StatusCode);
+        var fulfilled = await fulfillResp.Content.ReadFromJsonAsync<PartnerAidRequest>(JsonOptions);
+        Assert.Equal("FulfilledByPartner", fulfilled!.Status);
+
+        var execResp = await client.PostAsJsonAsync("/api/logistics/execute-allocation",
+            new CompetingShortageScenarioRequestDto(Guid.Empty, new List<Guid> { Guid.Parse("66666666-6666-6666-6666-666666666614") }, "ProximityFirst"));
+        execResp.EnsureSuccessStatusCode();
+
+        var allocData = await client.GetFromJsonAsync<JsonElement>("/api/logistics/allocations", JsonOptions);
+        var firstDispatchId = allocData.GetProperty("dispatches").EnumerateArray().First().GetProperty("id").GetGuid();
+
+        var deliverResp = await client.PostAsync($"/api/logistics/dispatches/{firstDispatchId}/deliver", null);
+        Assert.Equal(HttpStatusCode.OK, deliverResp.StatusCode);
+        var delivered = await deliverResp.Content.ReadFromJsonAsync<DispatchRecord>(JsonOptions);
+        Assert.Equal("Delivered", delivered!.DispatchStatus);
+        Assert.NotNull(delivered.DeliveredAtUtc);
+    }
+
+    [Fact]
+    public void AllocationStrategies_MultiConstraintOptimal_AndProximityFirst_SelectExpectedWarehouses()
+    {
+        var mapping = new ResilientMappingProviderService(new ServiceResilienceMonitor());
+        var nearWarehouseId = Guid.NewGuid();
+        var coldOptimalWarehouseId = Guid.NewGuid();
+
+        var req = new AssistanceRequest
+        {
+            Id = Guid.NewGuid(),
+            ReferenceCode = "REQ-STRAT-01",
+            Title = "Insulin Cold Chain",
+            Category = RequestCategory.Medicine,
+            FinalApprovedUrgency = UrgencyLevel.LifeThreatening,
+            PriorityScore = 95,
+            RequestedQuantity = 10,
+            Latitude = 6.6828,
+            Longitude = 80.3992
+        };
+
+        var resources = new List<ResourceItem>
+        {
+            new()
+            {
 }
