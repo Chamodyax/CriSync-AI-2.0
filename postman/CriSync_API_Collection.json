@@ -145,6 +145,124 @@
         },
         {
           "name": "Replenish Warehouse Stock",
-
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addedQuantity\": 25,\n  \"sourceNote\": \"UNICEF regional emergency replenishment\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logistics/resources/{{resourceId}}/replenish"
+          }
+        },
+        {
+          "name": "Simulate Fair Contention Allocation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceItemId\": \"{{resourceId}}\",\n  \"competingRequestIds\": [\"{{requestId}}\"],\n  \"strategyName\": \"ShortageProportionalContention\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logistics/simulate-allocation"
+          }
+        },
+        {
+          "name": "List Allocations, Convoys & Partner Aid Requests",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/logistics/allocations" }
+        }
+      ]
+    },
+    {
+      "name": "5. Shelters & Volunteers Lifecycle",
+      "item": [
+        {
+          "name": "List Shelters & Check-Ins",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/shelters" }
+        },
+        {
+          "name": "Request Additional Shelter Supplies",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Food\",\n  \"resourceName\": \"Infant Nutrition Packs\",\n  \"quantityNeeded\": 60,\n  \"justification\": \"Shelter population grew by 35 evacuees.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/shelters/{{shelterId}}/request-supplies"
+          }
+        },
+        {
+          "name": "List Volunteers & Task Assignments",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/volunteers" }
+        },
+        {
+          "name": "Match Volunteers by Skill & GPS",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/volunteers/match?skill=Medicine&lat=6.6828&lon=80.3992" }
+        }
+      ]
+    },
+    {
+      "name": "6. Donations, Expenditures & Transparency",
+      "item": [
+        {
+          "name": "List Campaigns & Donations",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/donations" }
+        },
+        {
+          "name": "Get Donor Transparency & Utilisation Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/donations/transparency-report" }
+        },
+        {
+          "name": "Record Campaign Relief Expenditure",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountUsd\": 4500,\n  \"category\": \"WaterLogistics\",\n  \"description\": \"Portable Solar Water Pumping Units for Ratnapura\"\n}"
+            },
+            "url": "{{baseUrl}}/api/donations/campaigns/{{campaignId}}/expenditures"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GIS Coverage, Notifications & Resilience",
+      "item": [
+        {
+          "name": "Calculate Road Delivery Route",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/route?originLat=6.6890&originLon=80.4020&destLat=6.6828&destLon=80.3992" }
+        },
+        {
+          "name": "Reverse Geocode Coordinates",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/reverse-geocode?latitude=6.6828&longitude=80.3992" }
+        },
+        {
+          "name": "Get Service Centre Map References",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/references" }
+        },
+        {
+          "name": "Get Geographical Coverage Gap Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/coverage-report" }
+        },
+        {
+          "name": "Get My Notifications Inbox",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/notifications/me" }
+        },
+        {
+          "name": "Get Operational Metrics & KPI History",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/metrics/history" }
+        },
+        {
+          "name": "Retry Failed Notifications Sweep",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/notifications/retry-failed" }
+        },
+        {
+          "name": "Toggle External Outage Circuit Breaker",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/admin/resilience/toggle?service=AI&simulateFailure=false" }
+        }
+      ]
+    }
   ]
 }
