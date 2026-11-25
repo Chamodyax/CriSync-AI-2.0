@@ -546,32 +546,622 @@ function CrisyncLaunchOverlay({
               alt="CriSync Logo"
               animate={{ scale: [1, 1.055, 1] }}
               transition={{ duration: 1.7, repeat: Infinity, ease: 'easeInOut' }}
+              className="w-28 h-28 sm:w-32 sm:h-32 rounded-[28px] object-cover crisync-logo-frame"
+            />
+          </motion.div>
+        </div>
 
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, delay: 0.12 }}
+          className="space-y-3 w-full"
+        >
+          <div className="crisync-wordmark text-4xl sm:text-5xl tracking-tight">
+            <span className="crisync-wordmark-primary">Cri</span>
+            <span className="crisync-wordmark-accent">Sync</span>
+          </div>
+
+          <div className="bento-glass rounded-2xl px-4 py-3 border border-indigo-500/25 flex items-center justify-center gap-3 mx-auto max-w-sm">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <div className="text-left min-w-0">
+              <p className="text-xs font-extrabold text-white truncate">
+                {user.fullName} • {getFriendlyRoleTitle(user.role)}
+              </p>
+              <p className="text-[11px] text-zinc-400 truncate">
+                {user.organisationName}
+              </p>
+            </div>
+          </div>
+
+          <div className="w-full max-w-xs mx-auto pt-2 space-y-2.5">
+            <div className="h-2 w-full rounded-full bg-white/10 border border-white/10 overflow-hidden">
+              <motion.div
+                initial={{ width: '8%' }}
+                animate={{ width: '100%' }}
+                transition={{ duration: 2.1, ease: 'easeInOut' }}
+                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-indigo-500 to-rose-500"
+              />
+            </div>
+
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={stageIndex}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+                className="text-xs font-semibold text-indigo-300 flex items-center justify-center gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span>{LAUNCH_STAGES[stageIndex] || LAUNCH_STAGES[0]}</span>
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </div>
+    </motion.div>
+  );
+}
+
+export default function App() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('aether_theme');
+    return saved === 'dark' ? 'dark' : 'light';
   });
-}
+  const [showBrandIntro, setShowBrandIntro] = useState<boolean>(() => {
+    try {
+      if (localStorage.getItem('crisync_auth_user')) return false;
+      return !sessionStorage.getItem('crisync_intro_seen');
+    } catch {
+      return false;
+    }
+  });
+  const [introPhase, setIntroPhase] = useState<IntroPhase>('enter');
+  const [introRunId, setIntroRunId] = useState(0);
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    try {
+      const savedTab = localStorage.getItem('crisync_active_tab') as TabKey;
+      return savedTab || 'dashboard';
+    } catch {
+      return 'dashboard';
+    }
+  });
+  const [mobileNavDrawerOpen, setMobileNavDrawerOpen] = useState(false);
+  const [languageMenuOpen, setLanguageMenuOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<any | null>(() => {
+    try {
+      const saved = localStorage.getItem('crisync_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileFullName, setProfileFullName] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileLanguage, setProfileLanguage] = useState('en');
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+  const [profileCurrentPassword, setProfileCurrentPassword] = useState('');
+  const [profileNewPassword, setProfileNewPassword] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileUnlocked, setProfileUnlocked] = useState<Record<string, boolean>>({});
+  const [quickUnlockStatus, setQuickUnlockStatus] = useState<{
+    quickUnlockEnabled: boolean;
+    mode: string;
+    hasBiometricCredential: boolean;
+    failedAttempts: number;
+    trustedDevices?: {
+      deviceId: string;
+      deviceName: string;
+      originHost: string;
+      hasBiometrics: boolean;
+      createdAtUtc: string;
+    }[];
+  } | null>(null);
+  const [currentDeviceBound, setCurrentDeviceBound] = useState(false);
+  const [quickUnlockMode, setQuickUnlockMode] = useState<'Pattern' | 'Pin'>('Pattern');
+  const [quickUnlockPin, setQuickUnlockPin] = useState('');
+  const [quickUnlockPattern, setQuickUnlockPattern] = useState('');
+  const [quickUnlockCurrentPassword, setQuickUnlockCurrentPassword] = useState('');
+  const [quickUnlockUseBiometrics, setQuickUnlockUseBiometrics] = useState(false);
+  const [biometricSupported, setBiometricSupported] = useState(false);
+  const [quickUnlockBusy, setQuickUnlockBusy] = useState(false);
+  const [loginTransitionUser, setLoginTransitionUser] = useState<any | null>(null);
+  const [loginStageIndex, setLoginStageIndex] = useState<number>(0);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [statusBanner, setStatusBanner] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [loading, setLoading] = useState(false);
 
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
+  const [metrics, setMetrics] = useState<any | null>(null);
+  const [crises, setCrises] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [household, setHousehold] = useState<any | null>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [demandForecast, setDemandForecast] = useState<any[]>([]);
+  const [briefing, setBriefing] = useState<any | null>(null);
+  const [briefingLang, setBriefingLang] = useState('en');
 
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
+  const [resources, setResources] = useState<any[]>([]);
+  const [selectedStrategy, setSelectedStrategy] = useState('MultiConstraintOptimal');
+  const [selectedCompetingIds, setSelectedCompetingIds] = useState<string[]>([]);
+  const [allocationPlanResult, setAllocationPlanResult] = useState<any | null>(null);
 
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
+  const [organisations, setOrganisations] = useState<any[]>([]);
+  const [sheltersData, setSheltersData] = useState<any>({ shelters: [], allocations: [] });
+  const [volunteersData, setVolunteersData] = useState<any>({ volunteers: [], assignments: [] });
+  const [volunteerMatches, setVolunteerMatches] = useState<any[]>([]);
+  const [donationsData, setDonationsData] = useState<any>({ campaigns: [], donations: [] });
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminPartnerships, setAdminPartnerships] = useState<any[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<any[]>([]);
+  const [systemConfig, setSystemConfig] = useState<any | null>(null);
+  const [serviceSettings, setServiceSettings] = useState<any | null>(null);
+  const [resilienceStatus, setResilienceStatus] = useState<any | null>(null);
+  const [routeCalc, setRouteCalc] = useState<any | null>(null);
+  const [selectedRecommendation, setSelectedRecommendation] = useState<any | null>(null);
+  const [myNotifications, setMyNotifications] = useState<any[]>([]);
+  const [logisticsAllocationsData, setLogisticsAllocationsData] = useState<any>({
+    allocations: [],
+    dispatches: [],
+    partnerAidRequests: []
+  });
+  const [transparencyReport, setTransparencyReport] = useState<any | null>(null);
+  const [mappingReferences, setMappingReferences] = useState<any[]>([]);
+  const [coverageReport, setCoverageReport] = useState<any | null>(null);
+  const [feedbackAnalytics, setFeedbackAnalytics] = useState<any | null>(null);
+  const [sitRepReport, setSitRepReport] = useState<any | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (!showBrandIntro) return;
+    setIntroPhase('enter');
+    try {
+      sessionStorage.setItem('crisync_intro_seen', 'true');
+    } catch { }
+    const fuseTimer = setTimeout(() => setIntroPhase('fuse'), 500);
+    const lockTimer = setTimeout(() => setIntroPhase('locked'), 1000);
+    const hideTimer = setTimeout(() => setShowBrandIntro(false), 1600);
+    return () => {
+      clearTimeout(fuseTimer);
+      clearTimeout(lockTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [introRunId, showBrandIntro]);
+
+  const triggerBrandIntro = () => {
+    setShowBrandIntro(true);
+    setIntroRunId((n) => n + 1);
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('dark', 'light');
+    root.classList.add(theme);
+    localStorage.setItem('aether_theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (authUser) {
+      try {
+        localStorage.setItem('crisync_auth_user', JSON.stringify(authUser));
+      } catch { }
+    } else {
+      try {
+        localStorage.removeItem('crisync_auth_user');
+        localStorage.removeItem('crisync_active_tab');
+      } catch { }
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    if (activeTab && authUser) {
+      try {
+        localStorage.setItem('crisync_active_tab', activeTab);
+      } catch { }
+    }
+  }, [activeTab, authUser]);
+
+  useEffect(() => {
+    document.body.style.overflow =
+      mobileNavDrawerOpen || languageMenuOpen || profileModalOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileNavDrawerOpen, languageMenuOpen, profileModalOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        if (authUser) {
+          event.preventDefault();
+          setCommandPaletteOpen((prev) => !prev);
+        }
+        return;
+      }
+      if (event.key === 'Escape') {
+        if (commandPaletteOpen) setCommandPaletteOpen(false);
+        if (profileModalOpen) setProfileModalOpen(false);
+        if (languageMenuOpen) setLanguageMenuOpen(false);
+        if (mobileNavDrawerOpen) setMobileNavDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [authUser, commandPaletteOpen, profileModalOpen, languageMenuOpen, mobileNavDrawerOpen]);
+
+  useEffect(() => {
+    if (!statusBanner) return;
+    const timer = setTimeout(() => {
+      setStatusBanner(null);
+    }, 5500);
+    return () => clearTimeout(timer);
+  }, [statusBanner]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  const notify = (type: 'success' | 'error' | 'info', text: string) => {
+    setStatusBanner({ type, text });
+  };
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setAuthUser(null);
+      try {
+        localStorage.removeItem('crisync_auth_user');
+        localStorage.removeItem('crisync_active_tab');
+      } catch { }
+      setAdminUsers([]);
+      setAdminPartnerships([]);
+      setRolePermissions([]);
+      setSystemConfig(null);
+      setServiceSettings(null);
+      setMyNotifications([]);
+      setTransparencyReport(null);
+      setStatusBanner(null);
+      setProfileModalOpen(false);
+      setMobileNavDrawerOpen(false);
+      setCommandPaletteOpen(false);
+      setLoginError('Your session expired. Please sign in again.');
+    };
+    window.addEventListener('crisync:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('crisync:unauthorized', onUnauthorized);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      apiFetch<any[]>('/organisations').catch(() => []),
+      apiFetch<any[]>('/crises').catch(() => [])
+    ]).then(([orgs, publicCrises]) => {
+      setOrganisations(orgs);
+      if (Array.isArray(publicCrises)) {
+        setCrises(publicCrises);
+      }
+    });
+
+    if (authUser?.token) {
+      loadAllData(authUser.token, undefined, authUser.role).catch((err: any) => {
+        if (err?.message?.includes('401') || err?.message?.toLowerCase().includes('unauthorized')) {
+          handleLogout();
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authUser?.token) return;
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadAllData(authUser.token, undefined, authUser.role);
+      }
+    }, 30000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadAllData(authUser.token, undefined, authUser.role);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [authUser?.token, authUser?.role]);
+
+  const loadAllData = async (tokenOverride?: string | null, langOverride?: string, roleOverride?: string) => {
+    const activeToken = tokenOverride !== undefined ? tokenOverride : authUser?.token;
+    if (!activeToken) {
+      return;
+    }
+    const activeLang = langOverride || briefingLang;
+    const activeRole = roleOverride || authUser?.role;
+    const isAdminTier = activeRole === 'SystemAdmin' || activeRole === 'OrganizationAdmin';
+    const canViewAuditLogs =
+      activeRole === 'SystemAdmin' ||
+      activeRole === 'OrganizationAdmin' ||
+      activeRole === 'EmergencyCoordinator';
+    setLoading(true);
+    try {
+      const [
+        orgsRes,
+        metricsRes,
+        crisesRes,
+        alertsRes,
+        requestsRes,
+        recsRes,
+        resourcesRes,
+        sheltersRes,
+        volunteersRes,
+        donationsRes,
+        auditsRes,
+        resilienceRes,
+        householdRes,
+        usersRes,
+        partnershipsRes,
+        permissionsRes,
+        configRes,
+        settingsRes,
+        myNotifsRes,
+        allocsDataRes,
+        transparencyRes,
+        mapRefsRes,
+        coverageRes,
+        feedbackAnalyticsRes,
+        sitRepRes
+      ] = await Promise.all([
+        apiFetch<any[]>('/organisations', {}, activeToken).catch(() => []),
+        apiFetch<any>('/admin/metrics', {}, activeToken).catch(() => null),
+        apiFetch<any[]>('/crises', {}, activeToken).catch(() => []),
+        apiFetch<any[]>('/crises/alerts', {}, activeToken).catch(() => []),
+        apiFetch<any[]>('/requests', {}, activeToken).catch(() => []),
+        apiFetch<any[]>('/ai-governance/recommendations', {}, activeToken).catch(() => []),
+        apiFetch<any[]>('/logistics/resources', {}, activeToken).catch(() => []),
+        apiFetch<any>('/shelters', {}, activeToken).catch(() => ({ shelters: [], allocations: [] })),
+        apiFetch<any>('/volunteers', {}, activeToken).catch(() => ({ volunteers: [], assignments: [] })),
+        apiFetch<any>('/donations', {}, activeToken).catch(() => ({ campaigns: [], donations: [] })),
+        canViewAuditLogs ? apiFetch<any[]>('/admin/audit-logs', {}, activeToken).catch(() => []) : Promise.resolve([]),
+        apiFetch<any>('/admin/resilience', {}, activeToken).catch(() => null),
+        apiFetch<any>('/users/households/me', {}, activeToken).catch(() => null),
+        isAdminTier ? apiFetch<any[]>('/admin/users', {}, activeToken).catch(() => []) : Promise.resolve([]),
+        isAdminTier ? apiFetch<any[]>('/admin/partnerships', {}, activeToken).catch(() => []) : Promise.resolve([]),
+        isAdminTier ? apiFetch<any[]>('/admin/role-permissions', {}, activeToken).catch(() => []) : Promise.resolve([]),
+        isAdminTier ? apiFetch<any>('/admin/system-config', {}, activeToken).catch(() => null) : Promise.resolve(null),
+        isAdminTier ? apiFetch<any>('/admin/service-settings', {}, activeToken).catch(() => null) : Promise.resolve(null),
+        apiFetch<any[]>('/notifications/me', {}, activeToken).catch(() => []),
+        apiFetch<any>('/logistics/allocations', {}, activeToken).catch(() => ({ allocations: [], dispatches: [], partnerAidRequests: [] })),
+        apiFetch<any>('/donations/transparency-report', {}, activeToken).catch(() => null),
+        apiFetch<any[]>('/mapping/references', {}, activeToken).catch(() => []),
+        apiFetch<any>('/mapping/coverage-report', {}, activeToken).catch(() => null),
+        apiFetch<any>('/requests/feedback', {}, activeToken).catch(() => null),
+        apiFetch<any>('/reports/sitrep', {}, activeToken).catch(() => null)
+      ]);
+
+      if (Array.isArray(orgsRes) && orgsRes.length > 0) {
+        setOrganisations(orgsRes);
+      }
+      setMetrics(metricsRes);
+      setCrises(crisesRes);
+      setAlerts(alertsRes);
+      setRequests(requestsRes);
+      setRecommendations(recsRes);
+      setResources(resourcesRes);
+      setSheltersData(sheltersRes);
+      setVolunteersData(volunteersRes);
+      setDonationsData(donationsRes);
+      setAuditLogs(auditsRes);
+      setResilienceStatus(resilienceRes);
+      setHousehold(householdRes);
+      setAdminUsers(Array.isArray(usersRes) ? usersRes : []);
+      setAdminPartnerships(Array.isArray(partnershipsRes) ? partnershipsRes : []);
+      setRolePermissions(Array.isArray(permissionsRes) ? permissionsRes : []);
+      setSystemConfig(configRes);
+      setServiceSettings(settingsRes);
+      setMyNotifications(Array.isArray(myNotifsRes) ? myNotifsRes : []);
+      setLogisticsAllocationsData(allocsDataRes || { allocations: [], dispatches: [], partnerAidRequests: [] });
+      setTransparencyReport(transparencyRes);
+      setMappingReferences(Array.isArray(mapRefsRes) ? mapRefsRes : []);
+      setCoverageReport(coverageRes);
+      setFeedbackAnalytics(feedbackAnalyticsRes);
+      setSitRepReport(sitRepRes);
+
+      if (requestsRes.length >= 2 && selectedCompetingIds.length === 0) {
+        const medRequests = requestsRes
+          .filter((r: any) => r.category === 'Medicine' && r.status !== 'MergedAsDuplicate')
+          .map((r: any) => r.id);
+        setSelectedCompetingIds(medRequests);
+      }
+
+      if (crisesRes.length > 0) {
+        const primaryCrisisId = crisesRes[0].id;
+        const [forecastRes, briefRes] = await Promise.all([
+          apiFetch<any[]>(`/ai-governance/demand-forecast/${primaryCrisisId}`, {}, activeToken),
+          apiFetch<any>(`/ai-governance/multilingual-briefing/${primaryCrisisId}?lang=${activeLang}`, {}, activeToken)
+        ]);
+        setDemandForecast(forecastRes);
+        setBriefing(briefRes);
+      } else {
+        setDemandForecast([]);
+        setBriefing(null);
+      }
+      setLastSyncedAt(new Date());
+    } catch (err: any) {
+      notify('error', err.message || 'Failed to load data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeSessionLogin = async (res: any, successBannerText: string) => {
+    let stageTimerOne: ReturnType<typeof setTimeout> | undefined;
+    let stageTimerTwo: ReturnType<typeof setTimeout> | undefined;
+    try {
+      setMobileNavDrawerOpen(false);
+      setLoginStageIndex(0);
+      setLoginTransitionUser(res);
+
+      stageTimerOne = setTimeout(() => setLoginStageIndex(1), 350);
+      stageTimerTwo = setTimeout(() => setLoginStageIndex(2), 700);
+
+      await loadAllData(res.token, undefined, res.role);
+
+      const roleTabs = getRoleMenuItems(res.role);
+      setActiveTab(roleTabs[0].id);
+      setAuthUser(res);
+      setLoginTransitionUser(null);
+      notify('success', successBannerText);
+    } finally {
+      if (stageTimerOne) clearTimeout(stageTimerOne);
+      if (stageTimerTwo) clearTimeout(stageTimerTwo);
+    }
+  };
+
+  const handleLogin = async (emailToUse: string, passwordToUse: string, requireAdminRole = false) => {
+    setLoginError(null);
+    try {
+      const res = await apiFetch<any>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: emailToUse, password: passwordToUse })
+      });
+      if (requireAdminRole && res.role !== 'SystemAdmin' && res.role !== 'OrganizationAdmin') {
+        setLoginError('Access Denied: The Admin Login portal is restricted to Global System Admin and Organization Admin accounts only.');
+        return;
+      }
+      await completeSessionLogin(res, `Signed in as ${res.fullName} (${getFriendlyRoleTitle(res.role)})`);
+    } catch (err: any) {
+      setLoginTransitionUser(null);
+      setLoginError(err.message || 'Invalid credentials');
+    }
+  };
+
+  const handleQuickUnlockSession = async (res: any, methodLabel: string) => {
+    setLoginError(null);
+    try {
+      await completeSessionLogin(res, `Unlocked via ${methodLabel} as ${res.fullName} (${getFriendlyRoleTitle(res.role)})`);
+    } catch (err: any) {
+      setLoginTransitionUser(null);
+      setLoginError(err.message || 'Quick Unlock failed.');
+    }
+  };
+
+  const handleRegister = async (payload: {
+    fullName: string;
+    email: string;
+    phoneNumber: string;
+    password: string;
+    role: string;
+    preferredLanguage: string;
+    organisationId: string | null;
+    primaryAddress?: string;
+    totalMembers?: number;
+    childrenCount?: number;
+    elderlyCount?: number;
+    hasMobilityNeeds?: boolean;
+    hasChronicMedicalNeeds?: boolean;
+    medicalNotes?: string;
+    registerAsVolunteer?: boolean;
+    skillsCsv?: string;
+    languagesCsv?: string;
+    availabilitySchedule?: string;
+    baseTown?: string;
+    organisationName?: string;
+    organisationType?: string;
+    country?: string;
+    partnershipProposal?: string;
+  }) => {
+    setLoginError(null);
+    let stageTimerOne: ReturnType<typeof setTimeout> | undefined;
+    let stageTimerTwo: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const res = await apiFetch<any>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          fullName: payload.fullName.trim(),
+          email: payload.email.trim(),
+          phoneNumber: payload.phoneNumber.trim(),
+          password: payload.password,
+          role: payload.role,
+          preferredLanguage: payload.preferredLanguage || 'en',
+          organisationId: payload.organisationId || null,
+          organisationName: payload.organisationName?.trim() || null,
+          organisationType: payload.organisationType?.trim() || null,
+          country: payload.country?.trim() || null,
+          partnershipProposal: payload.partnershipProposal?.trim() || null,
+          skillsCsv: payload.skillsCsv?.trim() || null,
+          languagesCsv: payload.languagesCsv?.trim() || null,
+          availabilitySchedule: payload.availabilitySchedule?.trim() || null
+        })
+      });
+
+      const matchedOrg = organisations.find((o) => o.id === (res.organisationId || payload.organisationId));
+      const enrichedRes = {
+        ...res,
+        organisationName: matchedOrg ? matchedOrg.name : res.organisationName
+      };
+
+      const chosenLang = payload.preferredLanguage || 'en';
+      setBriefingLang(chosenLang);
+
+      setMobileNavDrawerOpen(false);
+      setLoginStageIndex(0);
+      setLoginTransitionUser(enrichedRes);
+
+      stageTimerOne = setTimeout(() => setLoginStageIndex(1), 700);
+      stageTimerTwo = setTimeout(() => setLoginStageIndex(2), 1450);
+
+      if (payload.role === 'Citizen') {
+        await apiFetch<any>(
+          '/users/households',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              householdHeadName: payload.fullName.trim(),
+              totalMembers: Math.max(1, Number(payload.totalMembers) || 1),
+              childrenCount: Math.max(0, Number(payload.childrenCount) || 0),
+              elderlyCount: Math.max(0, Number(payload.elderlyCount) || 0),
+              hasMobilityNeeds: Boolean(payload.hasMobilityNeeds),
+              hasChronicMedicalNeeds: Boolean(payload.hasChronicMedicalNeeds),
+              medicalNotes: payload.medicalNotes?.trim() || '',
+              primaryAddress: payload.primaryAddress?.trim() || '',
+              latitude: 6.9271,
+              longitude: 79.8612
+            })
+          },
+          enrichedRes.token
+        ).catch(() => {});
+      }
+
+      if (payload.role === 'Citizen' && payload.registerAsVolunteer) {
+        await apiFetch<any>(
+          '/volunteers',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              fullName: payload.fullName.trim(),
+              skillsCsv: payload.skillsCsv?.trim() || 'FirstAid, Logistics',
+              languagesCsv: payload.languagesCsv?.trim() || 'English',
+              availabilitySchedule: payload.availabilitySchedule?.trim() || 'Available On-Call',
+              currentLatitude: 6.9271,
+              currentLongitude: 79.8612
+            })
+          },
+          enrichedRes.token
+        ).catch(() => {});
+      }
+
+      await loadAllData(enrichedRes.token, chosenLang, enrichedRes.role);
+
+      const roleTabs = getRoleMenuItems(enrichedRes.role);
+      setActiveTab(roleTabs[0].id);
+      setAuthUser(enrichedRes);
+      setLoginTransitionUser(null);
+
+  return null;
+}
