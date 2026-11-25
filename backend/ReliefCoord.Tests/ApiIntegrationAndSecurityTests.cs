@@ -624,35 +624,141 @@ public class ApiIntegrationAndSecurityTests : IClassFixture<CriSyncWebApplicatio
 
         string clientJson = JsonSerializer.Serialize(new
         {
-}
+            type = "webauthn.get",
+            challenge = challenge!.ChallengeBase64Url,
+            origin = "http://localhost:5173"
+        });
+        string clientDataBase64Url = Convert.ToBase64String(Encoding.UTF8.GetBytes(clientJson))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
-internal static class LegacySessionTokenValidator
-{
-    internal static bool IsTokenWellFormed(string token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return false;
-        string[] segments = token.Split('.');
-        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+        var bioPayload = new QuickUnlockBiometricVerifyRequestDto(
+            setup.UserId,
+            setup.DeviceToken,
+            challenge.ChallengeId,
+            "cred-test-webauthn-001",
+            clientDataBase64Url);
+
+        var firstVerify = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/biometric", bioPayload);
+        Assert.Equal(HttpStatusCode.OK, firstVerify.StatusCode);
+        var bioAuth = await firstVerify.Content.ReadFromJsonAsync<AuthResponseDto>(JsonOptions);
+        Assert.False(string.IsNullOrWhiteSpace(bioAuth!.Token));
+
+        var replayVerify = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/biometric", bioPayload);
+        Assert.Equal(HttpStatusCode.Unauthorized, replayVerify.StatusCode);
     }
 
-    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    [Fact]
+    public async Task QuickUnlock_MultiDevice_LaptopAndPhoneBothWorkWithoutOverwriting()
     {
-        "Admin" => "SystemAdmin",
-        "Coordinator" => "EmergencyCoordinator",
-        "Logistics" => "LogisticsManager",
-        "Shelter" => "ShelterAdmin",
-        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
-    };
+        using var coordClient = _factory.CreateClient();
+        await LoginAsAsync(coordClient, "logistics@crisync.org", "Crisync@2026");
 
-    internal static int ComputeLockoutRemainingMinutes(int failedCount)
-    {
-        if (failedCount < 3) return 0;
-        return Math.Min(60, (failedCount - 2) * 15);
+        var laptopResp = await coordClient.PostAsJsonAsync("/api/auth/quick-unlock/setup",
+            new QuickUnlockSetupRequestDto("Crisync@2026", "Pin", "654321", "cred-laptop-001", "Windows PC (localhost:5173)", "localhost:5173"));
+        Assert.Equal(HttpStatusCode.OK, laptopResp.StatusCode);
+        var laptop = await laptopResp.Content.ReadFromJsonAsync<QuickUnlockSetupResponseDto>(JsonOptions);
+
+        var phoneResp = await coordClient.PostAsJsonAsync("/api/auth/quick-unlock/setup",
+            new QuickUnlockSetupRequestDto("Crisync@2026", "Pin", "654321", "cred-phone-002", "Android Phone (demo.ngrok-free.app)", "demo.ngrok-free.app"));
+        Assert.Equal(HttpStatusCode.OK, phoneResp.StatusCode);
+        var phone = await phoneResp.Content.ReadFromJsonAsync<QuickUnlockSetupResponseDto>(JsonOptions);
+
+        Assert.NotEqual(laptop!.DeviceId, phone!.DeviceId);
+
+        var status = await coordClient.GetFromJsonAsync<QuickUnlockStatusDto>("/api/auth/quick-unlock/status", JsonOptions);
+        Assert.Equal(2, status!.TrustedDevices.Count);
+
+        using var anonClient = _factory.CreateClient();
+        var laptopVerify = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(laptop.UserId, laptop.DeviceToken, "654321"));
+        Assert.Equal(HttpStatusCode.OK, laptopVerify.StatusCode);
+
+        var phoneVerify = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(phone.UserId, phone.DeviceToken, "654321"));
+        Assert.Equal(HttpStatusCode.OK, phoneVerify.StatusCode);
+
+        var laptopChal = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/challenge",
+            new QuickUnlockChallengeRequestDto(laptop.UserId, laptop.DeviceToken));
+        var phoneChal = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/challenge",
+            new QuickUnlockChallengeRequestDto(phone.UserId, phone.DeviceToken));
+        Assert.Equal("cred-laptop-001", (await laptopChal.Content.ReadFromJsonAsync<QuickUnlockChallengeResponseDto>(JsonOptions))!.CredentialId);
+        Assert.Equal("cred-phone-002", (await phoneChal.Content.ReadFromJsonAsync<QuickUnlockChallengeResponseDto>(JsonOptions))!.CredentialId);
+
+        var removeLaptop = await coordClient.DeleteAsync($"/api/auth/quick-unlock/devices/{laptop.DeviceId}");
+        Assert.Equal(HttpStatusCode.OK, removeLaptop.StatusCode);
+
+        var laptopAfterRevoke = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(laptop.UserId, laptop.DeviceToken, "654321"));
+        Assert.Equal(HttpStatusCode.Unauthorized, laptopAfterRevoke.StatusCode);
+
+        var phoneStillActive = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(phone.UserId, phone.DeviceToken, "654321"));
+        Assert.Equal(HttpStatusCode.OK, phoneStillActive.StatusCode);
     }
 
-    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    [Fact]
+    public async Task ShelterCheckout_ReleasesCapacity_AndSitRepAndFeedbackAnalytics_ReturnValidSummaries()
     {
-        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
-        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
-    };
+        using var shelterClient = _factory.CreateClient();
+        var shelterAuth = await LoginAsAsync(shelterClient, "shelter@crisync.org", "Crisync@2026");
+
+        var shelterId = Guid.Parse("44444444-4444-4444-4444-444444444411");
+        var beforeShelters = await shelterClient.GetFromJsonAsync<JsonElement>("/api/shelters", JsonOptions);
+        int beforeOcc = beforeShelters.GetProperty("shelters").EnumerateArray()
+            .First(s => s.GetProperty("id").GetGuid() == shelterId)
+            .GetProperty("currentOccupancy").GetInt32();
+
+        var allocResp = await shelterClient.PostAsJsonAsync("/api/shelters/allocate", new AllocateShelterRequestDto(
+            shelterId,
+            null,
+            shelterAuth.UserId,
+            "Checkout Verification Family",
+            4,
+            true
+        ));
+        allocResp.EnsureSuccessStatusCode();
+        var allocation = await allocResp.Content.ReadFromJsonAsync<ShelterAllocation>(JsonOptions);
+        Assert.NotNull(allocation);
+        Assert.Equal("CheckedIn", allocation!.AllocationStatus);
+
+        var checkoutResp = await shelterClient.PostAsJsonAsync(
+            $"/api/shelters/allocations/{allocation.Id}/checkout",
+            new CheckoutShelterAllocationDto("Family safely returned home after flood recession"));
+        Assert.Equal(HttpStatusCode.OK, checkoutResp.StatusCode);
+        var checkedOut = await checkoutResp.Content.ReadFromJsonAsync<ShelterAllocation>(JsonOptions);
+        Assert.Equal("CheckedOut", checkedOut!.AllocationStatus);
+
+        var afterShelters = await shelterClient.GetFromJsonAsync<JsonElement>("/api/shelters", JsonOptions);
+        int afterOcc = afterShelters.GetProperty("shelters").EnumerateArray()
+            .First(s => s.GetProperty("id").GetGuid() == shelterId)
+            .GetProperty("currentOccupancy").GetInt32();
+        Assert.Equal(beforeOcc, afterOcc);
+
+        var doubleCheckoutResp = await shelterClient.PostAsJsonAsync(
+            $"/api/shelters/allocations/{allocation.Id}/checkout",
+            new CheckoutShelterAllocationDto("Duplicate checkout attempt"));
+        Assert.Equal(HttpStatusCode.Conflict, doubleCheckoutResp.StatusCode);
+
+        using var citizenClient = _factory.CreateClient();
+        await LoginAsAsync(citizenClient, "citizen@crisync.org", "Crisync@2026");
+
+        var fbPost = await citizenClient.PostAsJsonAsync("/api/requests/feedback", new SubmitFeedbackDto(
+            Guid.Parse("66666666-6666-6666-6666-666666666611"),
+            5,
+            "Cold-chain insulin arrived quickly by boat.",
+            true,
+            true
+        ));
+        Assert.Equal(HttpStatusCode.OK, fbPost.StatusCode);
+
+        var fbAnalytics = await citizenClient.GetFromJsonAsync<FeedbackAnalyticsSummaryDto>("/api/requests/feedback", JsonOptions);
+        Assert.NotNull(fbAnalytics);
+        Assert.True(fbAnalytics!.TotalReviewsCount >= 1);
+        Assert.True(fbAnalytics.AverageRating >= 4.0);
+
+        var sitRep = await shelterClient.GetFromJsonAsync<SitRepReportDto>("/api/reports/sitrep", JsonOptions);
+        Assert.NotNull(sitRep);
+        Assert.True(sitRep!.TotalAssistanceRequests >= 4);
+        Assert.NotEmpty(sitRep.WarehouseAlerts);
+    }
 }
