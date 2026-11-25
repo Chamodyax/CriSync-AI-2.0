@@ -1163,5 +1163,651 @@ export default function App() {
       setAuthUser(enrichedRes);
       setLoginTransitionUser(null);
 
+      if (enrichedRes.accountStatus === 'Pending') {
+        notify(
+          'info',
+          `Volunteer registration submitted for ${enrichedRes.fullName}. Status is Pending until verified and activated by a Volunteer Coordinator.`
+        );
+      } else if (enrichedRes.accountStatus === 'PendingPartnershipApproval') {
+        notify(
+          'info',
+          `Partner Organization request submitted for ${enrichedRes.fullName}. Status is Pending Admin approval.`
+        );
+      } else {
+        notify(
+          'success',
+          `Welcome to CriSync, ${enrichedRes.fullName}! Account registered as ${getFriendlyRoleTitle(enrichedRes.role)}.`
+        );
+      }
+    } catch (err: any) {
+      setLoginTransitionUser(null);
+      setLoginError(err.message || 'Registration failed. Please check your details.');
+    } finally {
+      if (stageTimerOne) clearTimeout(stageTimerOne);
+      if (stageTimerTwo) clearTimeout(stageTimerTwo);
+    }
+  };
+
+  const AVATAR_COLOR_PRESETS: Array<[string, string]> = [
+    ['#4f46e5', '#06b6d4'],
+    ['#e11d48', '#f97316'],
+    ['#059669', '#14b8a6'],
+    ['#7c3aed', '#ec4899'],
+    ['#0284c7', '#3b82f6'],
+    ['#d97706', '#eab308']
+  ];
+
+  const buildAvatarPresetDataUrl = (name: string, bgFrom: string, bgTo: string): string => {
+    const parts = (name || 'CS').trim().split(/\s+/).filter(Boolean);
+    const initials =
+      parts.length >= 2
+        ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+        : (name || 'CS').slice(0, 2).toUpperCase();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${bgFrom}"/><stop offset="100%" stop-color="${bgTo}"/></linearGradient></defs><rect width="120" height="120" rx="28" fill="url(#g)"/><text x="60" y="74" text-anchor="middle" fill="#ffffff" font-family="Arial,sans-serif" font-weight="800" font-size="44">${initials}</text></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  };
+
+  const openProfileModal = () => {
+    if (!authUser) return;
+    setProfileFullName(authUser.fullName || '');
+    setProfilePhone(authUser.phoneNumber || '');
+    setProfileLanguage(authUser.preferredLanguage || briefingLang || 'en');
+    setProfilePhotoUrl(authUser.profilePhotoUrl || '');
+    setProfileCurrentPassword('');
+    setProfileNewPassword('');
+    setProfileUnlocked({});
+    setQuickUnlockPin('');
+    setQuickUnlockPattern('');
+    setQuickUnlockCurrentPassword('');
+    setQuickUnlockUseBiometrics(false);
+    const localRecord = loadTrustedDeviceUnlock();
+    setCurrentDeviceBound(Boolean(localRecord && localRecord.userId === authUser.id));
+    setMobileNavDrawerOpen(false);
+    setProfileModalOpen(true);
+
+    void isPlatformBiometricSupported().then(setBiometricSupported);
+    void apiFetch<any>('/auth/quick-unlock/status', {}, authUser.token)
+      .then((statusRes) => {
+        setQuickUnlockStatus(statusRes);
+        if (statusRes?.mode === 'Pin' || statusRes?.mode === 'Pattern') {
+          setQuickUnlockMode(statusRes.mode);
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleProfilePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 160;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+        setProfilePhotoUrl(canvas.toDataURL('image/jpeg', 0.84));
+      };
+      if (typeof reader.result === 'string') {
+        img.src = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authUser || !profileFullName.trim()) return;
+    setProfileSaving(true);
+    try {
+      const updated = await apiFetch<any>(
+        '/users/me',
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            fullName: profileFullName.trim(),
+            phoneNumber: profilePhone.trim(),
+            preferredLanguage: profileLanguage || 'en',
+            profilePhotoUrl: profilePhotoUrl,
+            currentPassword: profileNewPassword.trim() ? profileCurrentPassword : null,
+            newPassword: profileNewPassword.trim() ? profileNewPassword.trim() : null
+          })
+        },
+        authUser.token
+      );
+      setAuthUser(updated);
+      setProfileModalOpen(false);
+      setProfileCurrentPassword('');
+      setProfileNewPassword('');
+      if (profileLanguage && profileLanguage !== briefingLang) {
+        await handleLanguageBriefingChange(profileLanguage);
+      }
+      await loadAllData(updated.token, profileLanguage || briefingLang, updated.role);
+      notify('success', `Profile updated for ${updated.fullName}.`);
+    } catch (err: any) {
+      notify('error', err.message || 'Could not update your profile settings.');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleEnableQuickUnlock = async () => {
+    if (!authUser) return;
+    const secret = quickUnlockMode === 'Pattern' ? quickUnlockPattern.trim() : quickUnlockPin.trim();
+    if (!quickUnlockCurrentPassword.trim()) {
+      notify('error', 'Please enter your current password to authorise Trusted-Device Quick Unlock.');
+      return;
+    }
+    if (quickUnlockMode === 'Pin' && !/^\d{6}$/.test(secret)) {
+      notify('error', 'Quick Unlock PIN must be exactly 6 digits.');
+      return;
+    }
+    if (quickUnlockMode === 'Pattern' && secret.split('-').filter(Boolean).length < 4) {
+      notify('error', 'Draw a pattern connecting at least 4 dots.');
+      return;
+    }
+
+    setQuickUnlockBusy(true);
+    try {
+      let biometricCredId: string | null = null;
+      if (quickUnlockUseBiometrics) {
+        biometricCredId = await enrollDeviceBiometric(authUser.email, authUser.fullName);
+      }
+
+      const setupRes = await apiFetch<any>(
+        '/auth/quick-unlock/setup',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            currentPassword: quickUnlockCurrentPassword,
+            mode: quickUnlockMode,
+            secret,
+            biometricCredentialId: biometricCredId,
+            deviceName: detectCurrentDeviceName(),
+            originHost: typeof window !== 'undefined' ? window.location.host : 'localhost'
+          })
+        },
+        authUser.token
+      );
+
+      saveTrustedDeviceUnlock({
+        userId: setupRes.userId,
+        fullName: setupRes.fullName,
+        email: setupRes.email,
+        role: setupRes.role,
+        mode: setupRes.mode,
+        hasBiometricCredential: Boolean(setupRes.hasBiometricCredential),
+        credentialId: biometricCredId || undefined,
+        deviceId: setupRes.deviceId,
+        deviceName: setupRes.deviceName,
+        deviceToken: setupRes.deviceToken,
+        savedAtIso: new Date().toISOString()
+      });
+
+      setCurrentDeviceBound(true);
+      const refreshedStatus = await apiFetch<any>('/auth/quick-unlock/status', {}, authUser.token).catch(() => null);
+      if (refreshedStatus) {
+        setQuickUnlockStatus(refreshedStatus);
+      } else {
+        setQuickUnlockStatus({
+          quickUnlockEnabled: true,
+          mode: setupRes.mode,
+          hasBiometricCredential: Boolean(setupRes.hasBiometricCredential),
+          failedAttempts: 0
+        });
+      }
+      setQuickUnlockPin('');
+      setQuickUnlockPattern('');
+      setQuickUnlockCurrentPassword('');
+      notify(
+        'success',
+        `Trusted-Device Quick Unlock (${setupRes.mode}${setupRes.hasBiometricCredential ? ' + Biometrics' : ''}) bound to ${setupRes.deviceName || 'this browser'}!`
+      );
+    } catch (err: any) {
+      notify('error', err.message || 'Could not enable Quick Unlock on this device.');
+    } finally {
+      setQuickUnlockBusy(false);
+    }
+  };
+
+  const handleRemoveTrustedDevice = async (deviceId: string) => {
+    if (!authUser) return;
+    setQuickUnlockBusy(true);
+    try {
+      await apiFetch(`/auth/quick-unlock/devices/${deviceId}`, { method: 'DELETE' }, authUser.token);
+      const localRecord = loadTrustedDeviceUnlock();
+      if (localRecord && localRecord.deviceId === deviceId) {
+        clearTrustedDeviceUnlock();
+        setCurrentDeviceBound(false);
+      }
+      const refreshedStatus = await apiFetch<any>('/auth/quick-unlock/status', {}, authUser.token).catch(() => null);
+      if (refreshedStatus) {
+        setQuickUnlockStatus(refreshedStatus);
+      }
+      notify('info', 'Removed selected trusted device.');
+    } catch (err: any) {
+      notify('error', err.message || 'Could not remove trusted device.');
+    } finally {
+      setQuickUnlockBusy(false);
+    }
+  };
+
+  const handleRevokeQuickUnlock = async () => {
+    if (!authUser) return;
+    setQuickUnlockBusy(true);
+    try {
+      await apiFetch('/auth/quick-unlock', { method: 'DELETE' }, authUser.token);
+      const localRecord = loadTrustedDeviceUnlock();
+      if (localRecord && localRecord.userId === authUser.id) {
+        clearTrustedDeviceUnlock();
+        setCurrentDeviceBound(false);
+      }
+      setQuickUnlockStatus({
+        quickUnlockEnabled: false,
+        mode: '',
+        hasBiometricCredential: false,
+        failedAttempts: 0,
+        trustedDevices: []
+      });
+      notify('info', 'Trusted-Device Quick Unlock disabled across all devices.');
+    } catch (err: any) {
+      notify('error', err.message || 'Could not disable Quick Unlock.');
+    } finally {
+      setQuickUnlockBusy(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setAuthUser(null);
+    try {
+      localStorage.removeItem('crisync_auth_user');
+      localStorage.removeItem('crisync_active_tab');
+    } catch { }
+    setAdminUsers([]);
+    setAdminPartnerships([]);
+    setRolePermissions([]);
+    setSystemConfig(null);
+    setServiceSettings(null);
+    setStatusBanner(null);
+    setProfileModalOpen(false);
+    setMobileNavDrawerOpen(false);
+  };
+
+  const handleLanguageBriefingChange = async (lang: string) => {
+    setBriefingLang(lang);
+    const targetCrisisId = crises[0]?.id;
+    if (!targetCrisisId) {
+      setBriefing(null);
+      return;
+    }
+    try {
+      const briefRes = await apiFetch<any>(
+        `/ai-governance/multilingual-briefing/${targetCrisisId}?lang=${lang}`,
+        {},
+        authUser?.token
+      );
+      setBriefing(briefRes);
+    } catch {
+      setBriefing(null);
+    }
+  };
+
+  const handleUploadEvidence = async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await apiFetch<any>('/requests/upload-evidence', { method: 'POST', body: formData }, authUser?.token);
+      notify('success', `Document '${res.originalFileName}' attached successfully.`);
+      return res.safeFileName;
+    } catch (err: any) {
+      notify('error', err.message);
+      return null;
+    }
+  };
+
+  const handleSubmitCitizenRequest = async (payload: any): Promise<boolean> => {
+    const targetCrisisId = payload.crisisEventId || crises[0]?.id;
+    if (!targetCrisisId) {
+      notify(
+        'error',
+        'No active crisis event declared yet. An Emergency Coordinator or System Admin must declare an active crisis first.'
+      );
+      return false;
+    }
+    try {
+      const created = await apiFetch<any>(
+        '/requests',
+        {
+          method: 'POST',
+          body: JSON.stringify({ ...payload, crisisEventId: targetCrisisId })
+        },
+        authUser?.token
+      );
+      notify(
+        'success',
+        `Help request ${created.referenceCode} submitted! Priority Score: ${created.priorityScore}/100`
+      );
+      await loadAllData();
+      return true;
+    } catch (err: any) {
+      notify('error', err.message);
+      return false;
+    }
+  };
+
+  const handleSaveHousehold = async (payload: any) => {
+    try {
+      const saved = await apiFetch<any>(
+        '/users/households',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        authUser?.token
+      );
+      setHousehold(saved);
+      notify('success', 'Your family profile has been saved.');
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleSubmitCitizenFeedback = async (payload: {
+    assistanceRequestId: string;
+    rating: number;
+    comments: string;
+    wasAidTimely: boolean;
+    wasQuantitySufficient: boolean;
+  }) => {
+    try {
+      await apiFetch<any>(
+        '/requests/feedback',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        authUser?.token
+      );
+      notify('success', 'Thank you! Your delivery feedback and star rating have been saved.');
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleUpdateRequestStatus = async (
+    id: string,
+    newStatus: string,
+    note: string,
+    assignedOrganisationId?: string | null
+  ) => {
+    try {
+      await apiFetch<any>(
+        `/requests/${id}/status`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            newStatus,
+            assignedOrganisationId: assignedOrganisationId || null,
+            actionNote: note
+          })
+        },
+        authUser?.token
+      );
+      notify('success', `Request status updated to '${newStatus}'.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleCreateOperationalArea = async (crisisId: string, payload: any) =>
+    runAdminMutation(`/crises/${crisisId}/operational-areas`, 'POST', payload, `Operational area '${payload.zoneName}' added.`);
+
+  const handleReplenishResource = async (id: string, addedQuantity: number, sourceNote?: string) =>
+    runAdminMutation(`/logistics/resources/${id}/replenish`, 'POST', { addedQuantity, sourceNote }, `Added +${addedQuantity} units to warehouse stock.`);
+
+  const handleMarkDispatchDelivered = async (id: string) =>
+    runAdminMutation(`/logistics/dispatches/${id}/deliver`, 'POST', null, 'Supply convoy marked as Delivered.');
+
+  const handleCreatePartnerAidRequest = async (payload: any) =>
+    runAdminMutation('/logistics/partner-aid-requests', 'POST', payload, `Mutual aid request posted for '${payload.resourceName}'.`);
+
+  const handleFulfillPartnerAidRequest = async (id: string, fulfillmentNotes?: string) =>
+    runAdminMutation(`/logistics/partner-aid-requests/${id}/fulfill`, 'POST', { fulfillmentNotes }, 'Partner aid request marked as Fulfilled.');
+
+  const handleRequestShelterSupplies = async (shelterId: string, payload: any) =>
+    runAdminMutation(`/shelters/${shelterId}/request-supplies`, 'POST', payload, `Supply escalation submitted for '${payload.resourceName}'.`);
+
+  const handleUpdateMyAvailability = async (payload: { isAvailable: boolean; availabilitySchedule: string }) =>
+    runAdminMutation('/volunteers/me/availability', 'PUT', payload, 'Updated your volunteer availability and shift schedule.');
+
+  const handleRespondAssignment = async (assignmentId: string, decision: string, notes?: string) =>
+    runAdminMutation(`/volunteers/assignments/${assignmentId}/respond`, 'POST', { decision, notes }, `Mission response recorded: ${decision}.`);
+
+  const handleCompleteAssignment = async (assignmentId: string, completionNotes: string) =>
+    runAdminMutation(`/volunteers/assignments/${assignmentId}/complete`, 'POST', { completionNotes }, 'Volunteer task completed and logged.');
+
+  const handleRecordExpenditure = async (campaignId: string, payload: { amountUsd: number; category: string; description: string }) =>
+    runAdminMutation(`/donations/campaigns/${campaignId}/expenditures`, 'POST', payload, `Recorded $${payload.amountUsd.toLocaleString()} USD expenditure (${payload.category}).`);
+
+  const handleRejectFlaggedDonation = async (id: string) =>
+    runAdminMutation(`/donations/${id}/reject`, 'POST', null, 'Flagged contribution rejected by compliance.');
+
+  const handleRetryFailedNotifications = async () => {
+    try {
+      const res = await apiFetch<any>('/notifications/retry-failed', { method: 'POST' }, authUser?.token);
+      notify('success', `Notification retry sweep finished. Recovered ${res.recoveredCount} queued alerts.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message || 'Retry failed.');
+    }
+  };
+
+  const handleGovernanceReviewSubmit = async (payload: any) => {
+    try {
+      await apiFetch<any>('/ai-governance/review', { method: 'POST', body: JSON.stringify(payload) }, authUser?.token);
+      notify('success', `Staff review decision (${payload.decisionStatus}) saved.`);
+      setSelectedRecommendation(null);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleMergeDuplicate = async (duplicateReq: any) => {
+    if (!duplicateReq.potentialDuplicateOfRequestId) return;
+    try {
+      await apiFetch<any>(
+        '/requests/merge-duplicate',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            primaryRequestId: duplicateReq.potentialDuplicateOfRequestId,
+            duplicateRequestId: duplicateReq.id,
+            mergeJustification: `Merged duplicate request (${Math.round(duplicateReq.duplicateSimilarityScore * 100)}% match) into primary request.`
+          })
+        },
+        authUser?.token
+      );
+      notify('success', `Duplicate request ${duplicateReq.referenceCode} merged into primary case.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleSimulateOrExecuteAllocation = async (commitToDatabase: boolean) => {
+    try {
+      const endpoint = commitToDatabase ? '/logistics/execute-allocation' : '/logistics/simulate-allocation';
+      const result = await apiFetch<any>(
+        endpoint,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            resourceItemId: resources[0]?.id || '55555555-5555-5555-5555-555555555501',
+            competingRequestIds: selectedCompetingIds,
+            strategyName: selectedStrategy
+          })
+        },
+        authUser?.token
+      );
+      setAllocationPlanResult(result);
+      notify(
+        'success',
+        commitToDatabase
+          ? `Supplies allocated and dispatched from warehouse (${result.strategyUsed}).`
+          : `Delivery preview generated (${result.strategyUsed}). Review the plan below.`
+      );
+      if (commitToDatabase) {
+        await loadAllData();
+      }
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleAddResource = async (payload: any) => {
+    try {
+      await apiFetch<any>(
+        '/logistics/resources',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        authUser?.token
+      );
+      notify('success', `Added '${payload.name}' to warehouse inventory.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleCreateShelter = async (payload: any) => {
+    try {
+      await apiFetch<any>(
+        '/shelters',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        authUser?.token
+      );
+      notify('success', `Registered shelter '${payload.name}'.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleCreateCrisisEvent = async (payload: {
+    title: string;
+    crisisType: string;
+    severity: string;
+    country: string;
+    region: string;
+    description: string;
+    centerLatitude: number;
+    centerLongitude: number;
+    radiusKm: number;
+  }) => {
+    try {
+      await apiFetch<any>(
+        '/crises',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            ...payload,
+            isActive: true,
+            operationalAreas: []
+          })
+        },
+        authUser?.token
+      );
+      notify('success', `Crisis event '${payload.title}' declared and activated.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleCreatePublicAlert = async (payload: {
+    crisisEventId: string;
+    title: string;
+    message: string;
+    severityLevel: string;
+    safetyGuidance: string;
+  }) => {
+    try {
+      await apiFetch<any>(
+        '/crises/alerts',
+        {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        },
+        authUser?.token
+      );
+      notify('success', `Public alert '${payload.title}' broadcast to all active channels.`);
+      await loadAllData();
+    } catch (err: any) {
+      notify('error', err.message);
+    }
+  };
+
+  const handleRecommendShelters = async (requestId: string): Promise<any[]> => {
+    try {
+      const candidates = await apiFetch<any[]>(
+        `/shelters/recommendations/${encodeURIComponent(requestId)}`,
+        {},
+        authUser?.token
+      );
+      notify('info', `Found ${candidates.length} AI-ranked shelter recommendations.`);
+      return candidates;
+    } catch (err: any) {
+      notify('error', err.message || 'Unable to generate shelter recommendations.');
+      return [];
+    }
+  };
+
+  const handleRegisterVolunteer = async (payload: {
+    fullName: string;
   return null;
 }
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
