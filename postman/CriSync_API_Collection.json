@@ -1,0 +1,268 @@
+{
+  "info": {
+    "_postman_id": "a7e94c10-2026-4b11-9c01-crisync00001",
+    "name": "CriSync — AI Humanitarian Crisis & Aid Coordination API",
+    "description": "Complete SE205.3 REST API collection for CriSync with automated JWT token capture, RBAC workflows, HITL AI governance, multi-constraint logistics, shelter allocation, volunteer lifecycle, financial transparency, and resilience simulation.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5080" },
+    { "key": "jwtToken", "value": "" },
+    { "key": "crisisId", "value": "33333333-3333-3333-3333-333333333311" },
+    { "key": "requestId", "value": "66666666-6666-6666-6666-666666666611" },
+    { "key": "shelterId", "value": "44444444-4444-4444-4444-444444444411" },
+    { "key": "resourceId", "value": "55555555-5555-5555-5555-555555555511" },
+    { "key": "volunteerId", "value": "88888888-8888-8888-8888-888888888811" },
+    { "key": "campaignId", "value": "99999999-9999-9999-9999-999999999911" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{jwtToken}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. Auth & Profiles",
+      "item": [
+        {
+          "name": "Login Emergency Coordinator (Auto-Save JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res && res.token) {",
+                  "  pm.collectionVariables.set('jwtToken', res.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"coordinator@crisync.org\",\n  \"password\": \"Crisync@2026\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/users/me" }
+        },
+        {
+          "name": "Self-Register Citizen",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Test Resident\",\n  \"email\": \"resident.postman@crisync.org\",\n  \"phoneNumber\": \"+94-77-0001234\",\n  \"password\": \"Crisync@2026\",\n  \"role\": \"Citizen\",\n  \"preferredLanguage\": \"en\",\n  \"organisationId\": null\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/register"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Crises, Operational Areas & Citizen Requests",
+      "item": [
+        {
+          "name": "List Active Crises",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/crises" }
+        },
+        {
+          "name": "Add Operational Area to Crisis",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zoneName\": \"Sector Delta - Pelmadulla Valley\",\n  \"district\": \"Ratnapura\",\n  \"latitude\": 6.6215,\n  \"longitude\": 80.5389,\n  \"coverageRadiusKm\": 12,\n  \"estimatedAffectedPopulation\": 4200,\n  \"riskLevel\": \"High\",\n  \"assignedOrganisationId\": \"11111111-1111-1111-1111-111111111102\"\n}"
+            },
+            "url": "{{baseUrl}}/api/crises/{{crisisId}}/operational-areas"
+          }
+        },
+        {
+          "name": "List All Assistance Requests",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/requests" }
+        },
+        {
+          "name": "Submit Citizen Assistance Request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"crisisEventId\": \"{{crisisId}}\",\n  \"category\": \"Medicine\",\n  \"selfReportedUrgency\": \"Critical\",\n  \"title\": \"Emergency Insulin Need at Riverside Clinic\",\n  \"description\": \"Floodwaters cut off road access; 12 elderly residents need insulin vials and water.\",\n  \"affectedPeopleCount\": 12,\n  \"requestedQuantity\": 15,\n  \"requiresAccessibilitySupport\": true,\n  \"locationAddress\": \"Riverside Clinic Road, Ratnapura\",\n  \"latitude\": 6.6835,\n  \"longitude\": 80.3998,\n  \"supportingEvidenceFileName\": \"\",\n  \"supportingEvidenceMimeType\": \"\",\n  \"preferredLanguage\": \"si\",\n  \"idempotencyKey\": \"POSTMAN-REQ-001\"\n}"
+            },
+            "url": "{{baseUrl}}/api/requests"
+          }
+        },
+        {
+          "name": "Upload Field Evidence File",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "file", "type": "file", "src": "" }]
+            },
+            "url": "{{baseUrl}}/api/requests/upload-evidence"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. AI Governance (Human-in-the-Loop)",
+      "item": [
+        {
+          "name": "Get AI Recommendations",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/ai-governance/recommendations" }
+        },
+        {
+          "name": "Get 48h Demand Forecast",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/ai-governance/demand-forecast/{{crisisId}}" }
+        },
+        {
+          "name": "Get Multilingual Safety Briefing",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/ai-governance/multilingual-briefing/{{crisisId}}?lang=si" }
+        }
+      ]
+    },
+    {
+      "name": "4. Logistics, Replenishment & Partner Aid",
+      "item": [
+        {
+          "name": "List Warehouse Stock",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/logistics/resources" }
+        },
+        {
+          "name": "Replenish Warehouse Stock",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addedQuantity\": 25,\n  \"sourceNote\": \"UNICEF regional emergency replenishment\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logistics/resources/{{resourceId}}/replenish"
+          }
+        },
+        {
+          "name": "Simulate Fair Contention Allocation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resourceItemId\": \"{{resourceId}}\",\n  \"competingRequestIds\": [\"{{requestId}}\"],\n  \"strategyName\": \"ShortageProportionalContention\"\n}"
+            },
+            "url": "{{baseUrl}}/api/logistics/simulate-allocation"
+          }
+        },
+        {
+          "name": "List Allocations, Convoys & Partner Aid Requests",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/logistics/allocations" }
+        }
+      ]
+    },
+    {
+      "name": "5. Shelters & Volunteers Lifecycle",
+      "item": [
+        {
+          "name": "List Shelters & Check-Ins",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/shelters" }
+        },
+        {
+          "name": "Request Additional Shelter Supplies",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category\": \"Food\",\n  \"resourceName\": \"Infant Nutrition Packs\",\n  \"quantityNeeded\": 60,\n  \"justification\": \"Shelter population grew by 35 evacuees.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/shelters/{{shelterId}}/request-supplies"
+          }
+        },
+        {
+          "name": "List Volunteers & Task Assignments",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/volunteers" }
+        },
+        {
+          "name": "Match Volunteers by Skill & GPS",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/volunteers/match?skill=Medicine&lat=6.6828&lon=80.3992" }
+        }
+      ]
+    },
+    {
+      "name": "6. Donations, Expenditures & Transparency",
+      "item": [
+        {
+          "name": "List Campaigns & Donations",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/donations" }
+        },
+        {
+          "name": "Get Donor Transparency & Utilisation Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/donations/transparency-report" }
+        },
+        {
+          "name": "Record Campaign Relief Expenditure",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountUsd\": 4500,\n  \"category\": \"WaterLogistics\",\n  \"description\": \"Portable Solar Water Pumping Units for Ratnapura\"\n}"
+            },
+            "url": "{{baseUrl}}/api/donations/campaigns/{{campaignId}}/expenditures"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. GIS Coverage, Notifications & Resilience",
+      "item": [
+        {
+          "name": "Calculate Road Delivery Route",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/route?originLat=6.6890&originLon=80.4020&destLat=6.6828&destLon=80.3992" }
+        },
+        {
+          "name": "Reverse Geocode Coordinates",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/reverse-geocode?latitude=6.6828&longitude=80.3992" }
+        },
+        {
+          "name": "Get Service Centre Map References",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/references" }
+        },
+        {
+          "name": "Get Geographical Coverage Gap Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/mapping/coverage-report" }
+        },
+        {
+          "name": "Get My Notifications Inbox",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/notifications/me" }
+        },
+        {
+          "name": "Get Operational Metrics & KPI History",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/admin/metrics/history" }
+        },
+        {
+          "name": "Retry Failed Notifications Sweep",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/notifications/retry-failed" }
+        },
+        {
+          "name": "Toggle External Outage Circuit Breaker",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/admin/resilience/toggle?service=AI&simulateFailure=false" }
+        }
+      ]
+    }
+  ]
+}
