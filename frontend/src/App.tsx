@@ -2329,5 +2329,585 @@ export default function App() {
                     <p className="text-xs text-zinc-400">
                       Choose your preferred interface & briefing language
                     </p>
-  return null;
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLanguageMenuOpen(false)}
+                  className="p-2 rounded-xl bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 overflow-y-auto sidebar-scroll pr-1 flex-1 min-h-0">
+                {LANGUAGE_OPTIONS.map((langOpt) => {
+                  const isActive = briefingLang === langOpt.code;
+                  return (
+                    <button
+                      key={langOpt.code}
+                      type="button"
+                      onClick={() => {
+                        handleLanguageBriefingChange(langOpt.code);
+                        setLanguageMenuOpen(false);
+                      }}
+                          className={`w-full text-left px-4 py-3 rounded-2xl border flex items-center justify-between transition ${isActive
+                          ? 'bg-indigo-600/20 border-2 border-indigo-500 text-white'
+                          : 'bg-white/[0.03] hover:bg-white/[0.08] border-white/[0.08] text-zinc-300'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-extrabold text-white">{langOpt.label}</p>
+                        <p className="text-xs text-zinc-400">{langOpt.fullName}</p>
+                      </div>
+                      {isActive && <CheckCircle2 className="w-5 h-5 text-indigo-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {mobileNavDrawerOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileNavDrawerOpen(false)}
+              className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-[70] xl:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', stiffness: 340, damping: 32 }}
+              className="fixed inset-y-0 left-0 z-[70] w-[88vw] max-w-[360px] h-[100dvh] bento-glass flex flex-col overflow-hidden xl:hidden border-r border-white/15"
+            >
+              <div className="shrink-0 p-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src="/crisync-logo.png"
+                    alt="CriSync Logo"
+                    className="w-11 h-11 rounded-2xl object-cover crisync-logo-frame shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="crisync-wordmark text-xl">
+                      <span className="crisync-wordmark-primary">Cri</span>
+                      <span className="crisync-wordmark-accent">Sync</span>
+                    </p>
+                    <p className="text-xs font-semibold text-indigo-300 truncate mt-0.5">
+                      {getFriendlyRoleTitle(authUser.role)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavDrawerOpen(false)}
+                  className="w-10 h-10 rounded-xl bg-white/5 text-zinc-400 hover:text-white flex items-center justify-center shrink-0"
+                  aria-label="Close Navigation Menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex-1 min-h-0 overflow-y-auto sidebar-scroll p-4 space-y-5">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2.5 px-1">
+                    Your Navigation Menu ({menuItems.length})
+                  </p>
+                  <div className="space-y-2">
+                    {menuItems.map((item) => {
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveTab(item.id);
+                            setMobileNavDrawerOpen(false);
+                          }}
+                              className={`w-full text-left p-3.5 rounded-2xl border flex items-center gap-3 transition ${isActive
+                              ? 'bg-indigo-600 text-white border-indigo-400 keep-white shadow-md'
+                              : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white/[0.07]'
+                          }`}
+                        >
+                          <span
+                                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isActive ? 'bg-indigo-700/60 text-white keep-white' : 'bg-black/25'
+                            }`}
+                          >
+                            {getModuleIcon(item.id, 'w-4 h-4')}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-extrabold truncate">
+                              {getLocalizedTabLabel(item.id, item.label)}
+                            </p>
+                            <p className="text-[11px] opacity-80 truncate mt-0.5">{item.subtext}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2.5 px-1 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{t.languageLabel}</span>
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {LANGUAGE_OPTIONS.map((langOpt) => (
+                      <button
+                        key={langOpt.code}
+                        type="button"
+                        onClick={() => handleLanguageBriefingChange(langOpt.code)}
+                            className={`py-2 px-2 rounded-xl text-xs font-bold border transition truncate ${briefingLang === langOpt.code
+                            ? 'bg-indigo-600 border-indigo-400 text-white keep-white shadow-sm'
+                            : 'bg-white/[0.03] border-white/10 text-zinc-300 hover:bg-white/[0.07]'
+                        }`}
+                      >
+                        {langOpt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="shrink-0 p-4 border-t border-white/10 space-y-2.5">
+                <button
+                  type="button"
+                  onClick={openProfileModal}
+                  className="w-full p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 flex items-center justify-between gap-2.5 text-left transition"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {authUser.profilePhotoUrl ? (
+                      <img
+                        src={authUser.profilePhotoUrl}
+                        alt={authUser.fullName}
+                        className="w-8 h-8 rounded-lg object-cover border border-indigo-400/40 shrink-0"
+                      />
+                    ) : (
+                      <div className="keep-white w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-xs font-extrabold text-white shrink-0">
+                        {authUser.fullName?.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-extrabold text-white truncate">{authUser.fullName}</p>
+                      <p className="text-[10px] text-indigo-300 truncate">Tap to edit profile, photo & password</p>
+                    </div>
+                  </div>
+                  <Pencil className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="py-2.5 px-2 rounded-xl bg-white/[0.05] border border-white/10 text-[11px] font-bold flex items-center justify-center gap-1.5"
+                  >
+                    {theme === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-400" />}
+                    <span>{theme === 'dark' ? t.lightMode : t.darkMode}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      loadAllData();
+                      setMobileNavDrawerOpen(false);
+                    }}
+                    className="py-2.5 px-2 rounded-xl bg-white/[0.05] border border-white/10 text-[11px] font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="py-2.5 px-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-[11px] font-bold flex items-center justify-center gap-1.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{t.signOut}</span>
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {profileModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setProfileModalOpen(false)}
+              className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[80]"
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label="My Profile and Account Settings"
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.97 }}
+              transition={{ type: 'spring', stiffness: 360, damping: 30 }}
+              className="fixed inset-x-3 top-6 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:top-10 z-[85] sm:w-full sm:max-w-lg max-h-[88dvh] bento-glass rounded-3xl p-5 sm:p-6 flex flex-col border border-indigo-500/30 shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/10 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/35 text-indigo-400 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-extrabold text-white">My Profile & Account Settings</h2>
+                    <p className="text-[11px] text-zinc-400">
+                      {authUser.email} • {getFriendlyRoleTitle(authUser.role)}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close Profile Modal"
+                  onClick={() => setProfileModalOpen(false)}
+                  className="p-2 rounded-xl bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form
+                key="my-profile-settings-form"
+                onSubmit={handleSaveProfile}
+                className="flex-1 min-h-0 overflow-y-auto sidebar-scroll pr-1 space-y-4 text-xs"
+              >
+                <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/[0.08] space-y-3">
+                  <div className="flex flex-wrap items-center gap-4">
+                    {profilePhotoUrl ? (
+                      <img
+                        src={profilePhotoUrl}
+                        alt={profileFullName || authUser.fullName}
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-indigo-400/50 shadow-md shrink-0"
+                      />
+                    ) : (
+                      <div className="keep-white w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-600 to-cyan-500 flex items-center justify-center text-xl font-black text-white shadow-md shrink-0">
+                        {(profileFullName || authUser.fullName || 'CS').slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-[180px] space-y-2">
+                      <p className="font-bold text-zinc-200">Profile Picture & Avatar</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label
+                          htmlFor="profile-photo-upload-input"
+                          className="keep-white cursor-pointer px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold inline-flex items-center gap-1.5 shadow-sm transition"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>Upload Photo</span>
+                        </label>
+                        <input
+                          id="profile-photo-upload-input"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleProfilePhotoUpload}
+                          className="hidden"
+                        />
+                        {profilePhotoUrl && (
+                          <button
+                            type="button"
+                            onClick={() => setProfilePhotoUrl('')}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold transition"
+                          >
+                            Remove Photo
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-zinc-400">
+                        Upload any photo or pick a built-in gradient avatar badge below:
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {AVATAR_COLOR_PRESETS.map(([fromCol, toCol], idx) => (
+                      <button
+                        key={`${fromCol}-${toCol}`}
+                        type="button"
+                        title={`Use Avatar Style ${idx + 1}`}
+                        onClick={() =>
+                          setProfilePhotoUrl(buildAvatarPresetDataUrl(profileFullName || authUser.fullName, fromCol, toCol))
+                        }
+                        style={{ background: `linear-gradient(135deg, ${fromCol}, ${toCol})` }}
+                        className="keep-white w-8 h-8 rounded-xl text-[11px] font-black text-white flex items-center justify-center border border-white/25 hover:scale-110 transition shadow-sm"
+                      >
+                        {(profileFullName || authUser.fullName || 'CS').slice(0, 2).toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                    <User className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Full Name</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="crisync_profile_fullname"
+                    autoComplete="off"
+                    required
+                    value={profileFullName}
+                    onChange={(e) => setProfileFullName(e.target.value)}
+                    placeholder="Enter your full name"
+                    className="rsvp-input"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                      <Phone className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Phone Number</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="crisync_profile_phone"
+                      autoComplete="off"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="+94 77 123 4567"
+                      className="rsvp-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="flex items-center gap-1.5 font-bold text-zinc-300 mb-1.5">
+                      <Globe className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Preferred Language</span>
+                    </label>
+                    <select
+                      value={profileLanguage}
+                      onChange={(e) => setProfileLanguage(e.target.value)}
+                      className="rsvp-input"
+                    >
+                      {LANGUAGE_OPTIONS.map((langOpt) => (
+                        <option key={langOpt.code} value={langOpt.code}>
+                          {langOpt.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-amber-500/[0.07] border border-amber-500/25 space-y-3">
+                  <p className="font-extrabold text-amber-300 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Change Account Password (Optional)</span>
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">Current Password</label>
+                      <input
+                        type="password"
+                        name="crisync_profile_current_password"
+                        autoComplete="new-password"
+                        readOnly={!profileUnlocked.currentPassword}
+                        onFocus={() => setProfileUnlocked((p) => ({ ...p, currentPassword: true }))}
+                        onMouseDown={() => setProfileUnlocked((p) => ({ ...p, currentPassword: true }))}
+                        onKeyDown={() => setProfileUnlocked((p) => ({ ...p, currentPassword: true }))}
+                        value={profileCurrentPassword}
+                        onChange={(e) => setProfileCurrentPassword(e.target.value)}
+                        placeholder="Required only if changing password"
+                        className="rsvp-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">New Password (Min 6 chars)</label>
+                      <input
+                        type="password"
+                        name="crisync_profile_new_password"
+                        autoComplete="new-password"
+                        readOnly={!profileUnlocked.newPassword}
+                        onFocus={() => setProfileUnlocked((p) => ({ ...p, newPassword: true }))}
+                        onMouseDown={() => setProfileUnlocked((p) => ({ ...p, newPassword: true }))}
+                        onKeyDown={() => setProfileUnlocked((p) => ({ ...p, newPassword: true }))}
+                        value={profileNewPassword}
+                        onChange={(e) => setProfileNewPassword(e.target.value)}
+                        placeholder="Leave empty to keep current password"
+                        className="rsvp-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-indigo-500/[0.08] border border-indigo-500/30 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-extrabold text-indigo-300 flex items-center gap-1.5">
+                      <Fingerprint className="w-4 h-4" />
+                      <span>Trusted-Device Quick Unlock (Pattern / PIN / Biometrics)</span>
+                    </p>
+                    {quickUnlockStatus?.quickUnlockEnabled && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold inline-flex items-center gap-1">
+                        <ShieldCheck className="w-3 h-3" />
+                        Active ({quickUnlockStatus.mode}{quickUnlockStatus.hasBiometricCredential ? ' + Biometrics' : ''})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Bind each browser or URL (for example Laptop on localhost and Phone via ngrok HTTPS) independently to unlock with a 3×3 Pattern, 6-digit PIN, or device Fingerprint / Windows Hello.
+                  </p>
+
+                  <div
+                        className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 ${currentDeviceBound
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1.5 font-semibold">
+                      <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                      {currentDeviceBound
+                        ? `Current browser (${typeof window !== 'undefined' ? window.location.host : 'device'}) is bound.`
+                        : `Current browser (${typeof window !== 'undefined' ? window.location.host : 'device'}) is not bound yet — enable below for this phone or URL!`}
+                    </span>
+                  </div>
+
+                  {quickUnlockStatus?.trustedDevices && quickUnlockStatus.trustedDevices.length > 0 && (
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                        Active Trusted Devices ({quickUnlockStatus.trustedDevices.length})
+                      </p>
+                      <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                        {quickUnlockStatus.trustedDevices.map((dev) => (
+                          <div
+                            key={dev.deviceId}
+                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/10 text-xs"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-bold text-zinc-100 truncate">{dev.deviceName}</p>
+                              <p className="text-[11px] text-zinc-400 truncate">
+                                {dev.originHost} • {dev.hasBiometrics ? 'Pattern/PIN + Biometrics' : 'Pattern/PIN'}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={quickUnlockBusy}
+                              onClick={() => void handleRemoveTrustedDevice(dev.deviceId)}
+                              className="p-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 transition shrink-0"
+                              title="Remove this device"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-white/[0.04] border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setQuickUnlockMode('Pattern')}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-extrabold transition ${quickUnlockMode === 'Pattern'
+                          ? 'bg-indigo-600 text-white keep-white'
+                          : 'text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      3×3 Pattern Lock
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickUnlockMode('Pin')}
+                          className={`py-1.5 px-2.5 rounded-lg text-xs font-extrabold transition ${quickUnlockMode === 'Pin'
+                          ? 'bg-indigo-600 text-white keep-white'
+                          : 'text-zinc-300 hover:text-white'
+                      }`}
+                    >
+                      6-Digit PIN
+                    </button>
+                  </div>
+
+                  {quickUnlockMode === 'Pattern' ? (
+                    <PatternLockPad
+                      value={quickUnlockPattern}
+                      onChange={setQuickUnlockPattern}
+                      disabled={quickUnlockBusy}
+                      label="Draw new unlock pattern (drag across 4+ dots)"
+                    />
+                  ) : (
+                    <div>
+                      <label className="block font-bold text-zinc-300 mb-1">6-Digit Quick Unlock PIN</label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        autoComplete="off"
+                        value={quickUnlockPin}
+                        onChange={(e) => setQuickUnlockPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="Enter 6 digits (e.g. 482910)"
+                        className="rsvp-input tracking-widest font-mono"
+                      />
+                    </div>
+                  )}
+
+                  {biometricSupported && (
+                    <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-white/[0.04] border border-white/10 cursor-pointer text-xs font-semibold text-zinc-200">
+                      <input
+                        type="checkbox"
+                        checked={quickUnlockUseBiometrics}
+                        onChange={(e) => setQuickUnlockUseBiometrics(e.target.checked)}
+                        className="w-4 h-4 rounded border-white/20 text-indigo-500"
+                      />
+                      <Fingerprint className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Also enroll Fingerprint / Face / Windows Hello on this device</span>
+                    </label>
+                  )}
+
+                  <div>
+                    <label className="block font-bold text-zinc-300 mb-1">Confirm Account Password</label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={quickUnlockCurrentPassword}
+                      onChange={(e) => setQuickUnlockCurrentPassword(e.target.value)}
+                      placeholder="Enter current password to bind this device"
+                      className="rsvp-input"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <button
+                      type="button"
+      </div>
+    )}
+    </div>
+  );
 }
+
+export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
+  const normalized = (query || '').trim().toLowerCase();
+  return (items || []).filter((item) => {
+    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
+    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
+    return matchesUrgency && (!normalized || hay.includes(normalized));
+  });
+}
+
+export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
+  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
+  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
+  return Number(Math.min(100, rawScore).toFixed(1));
+}
+
+export function legacyFormatCsvCell(raw: unknown): string {
+  const text = String(raw ?? '');
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+export const LEGACY_EXPORT_COLUMNS = [
+  'referenceCode',
+  'category',
+  'urgency',
+  'status',
+  'affectedPeopleCount',
+  'locationAddress'
+];
