@@ -672,3 +672,15 @@ public record SitRepReportDto(
     int TotalCitizenReviews,
     List<SitRepLowStockAlertDto> WarehouseAlerts
 );
+
+public record EmergencySosRequestDto(
+    string ContactName,
+    string ContactPhone,
+    string EmergencyType,
+    int PeopleCount,
+    string LocationAddress,
+    double Latitude,
+    double Longitude,
+    string? QuickNotes = null,
+    bool RequiresMedicalOrMobilitySupport = true
+);
