@@ -16,7 +16,7 @@ HCP Project/
 │   ├── ReliefCoord.Application/      # Use-Case Orchestration, DTOs, Interfaces, Allocation Strategies
 │   ├── ReliefCoord.Infrastructure/   # EF Core DbContext, Repositories, AI/OSM/SMS Adapters, Async Event & Retry Worker
 │   ├── ReliefCoord.Api/              # REST Controllers, PBKDF2 Auth, JWT Security, Rate Limiting, RBAC, Swagger/OpenAPI
-│   └── ReliefCoord.Tests/            # 22 xUnit Unit & WebApplicationFactory Integration Tests
+│   └── ReliefCoord.Tests/            # 31 xUnit Unit & WebApplicationFactory Integration Tests
 ├── frontend/                         # React + TypeScript + Tailwind CSS + Leaflet Interactive Client
 ├── postman/
 │   └── CriSync_API_Collection.json   # Complete API Verification & Demo Collection (Postman v2.1)
@@ -44,7 +44,7 @@ HCP Project/
 - **Node.js 18+** and **npm**
 - **SQL Server / LocalDB** *(Optional — the API defaults to zero-configuration local SQLite `reliefcoord_platform.db` and switches to SQL Server via `appsettings.json`).*
 
-### Step 1: Run Automated Unit & Integration Tests (22 xUnit Tests)
+### Step 1: Run Automated Unit & Integration Tests (31 xUnit Tests)
 ```powershell
 dotnet test backend/ReliefCoord.Tests/ReliefCoord.Tests.csproj
 ```
