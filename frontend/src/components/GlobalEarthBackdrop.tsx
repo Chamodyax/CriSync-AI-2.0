@@ -281,34 +281,236 @@ export const GlobalEarthBackdrop: React.FC<GlobalEarthBackdropProps> = ({
         ? isMobile
           ? height * 0.36
           : height * 0.49
+        : isMobile
+        ? height * 0.58
+        : height * 0.55;
+
+      const globalAlphaScale = isLogin ? 1 : isDark ? 0.62 : 0.72;
+      const pulseClock = now * 0.001;
+
+      ctx.save();
+      ctx.globalAlpha = globalAlphaScale;
+
+      const outerGlow = ctx.createRadialGradient(
+        cx - radius * 0.18,
+        cy - radius * 0.18,
+        radius * 0.15,
+        cx,
+        cy,
+        radius * 1.48
+      );
+      if (isDark) {
+        outerGlow.addColorStop(0, 'rgba(56, 189, 248, 0.16)');
+        outerGlow.addColorStop(0.55, 'rgba(99, 102, 241, 0.1)');
+        outerGlow.addColorStop(1, 'rgba(7, 9, 14, 0)');
+      } else {
+        outerGlow.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
+        outerGlow.addColorStop(0.55, 'rgba(14, 165, 233, 0.13)');
+        outerGlow.addColorStop(1, 'rgba(238, 242, 255, 0)');
+      }
+      ctx.fillStyle = outerGlow;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.48, 0, Math.PI * 2);
+      ctx.fill();
+
+      const sphereFill = ctx.createRadialGradient(
+        cx - radius * 0.28,
+        cy - radius * 0.28,
+        radius * 0.1,
+        cx,
+        cy,
+        radius
+      );
+      if (isDark) {
+        sphereFill.addColorStop(0, 'rgba(30, 58, 138, 0.22)');
+        sphereFill.addColorStop(0.7, 'rgba(15, 23, 42, 0.28)');
+        sphereFill.addColorStop(1, 'rgba(99, 102, 241, 0.16)');
+      } else {
+        sphereFill.addColorStop(0, 'rgba(199, 210, 254, 0.56)');
+        sphereFill.addColorStop(0.72, 'rgba(165, 243, 252, 0.34)');
+        sphereFill.addColorStop(1, 'rgba(99, 102, 241, 0.2)');
+      }
+      ctx.fillStyle = sphereFill;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = isDark ? 'rgba(129, 140, 248, 0.28)' : 'rgba(79, 70, 229, 0.34)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const latSteps = [-60, -30, 0, 30, 60];
+      for (const lat of latSteps) {
+        ctx.beginPath();
+        let started = false;
+        for (let lon = -180; lon <= 180; lon += 8) {
+          const p = rotatePoint(latLonToUnit(lat, lon), rotLon, tiltX);
+          if (p.z > -0.15) {
+            const sx = cx + p.x * radius;
+            const sy = cy - p.y * radius;
+            if (!started) {
+              ctx.moveTo(sx, sy);
+              started = true;
+            } else {
+              ctx.lineTo(sx, sy);
+            }
+          } else {
+            started = false;
+          }
+        }
+        ctx.strokeStyle =
+          lat === 0
+            ? isDark
+              ? 'rgba(56, 189, 248, 0.24)'
+              : 'rgba(14, 116, 144, 0.34)'
+            : isDark
+            ? 'rgba(148, 163, 184, 0.11)'
+            : 'rgba(99, 102, 241, 0.17)';
+        ctx.lineWidth = lat === 0 ? 1.1 : 0.75;
+        ctx.stroke();
+      }
+
+      for (let lon = 0; lon < 360; lon += 30) {
+        ctx.beginPath();
+        let started = false;
+        for (let lat = -84; lat <= 84; lat += 6) {
+          const p = rotatePoint(latLonToUnit(lat, lon), rotLon, tiltX);
+          if (p.z > -0.15) {
+            const sx = cx + p.x * radius;
+            const sy = cy - p.y * radius;
+            if (!started) {
+              ctx.moveTo(sx, sy);
+              started = true;
+            } else {
+              ctx.lineTo(sx, sy);
+            }
+          } else {
+            started = false;
+          }
+        }
+        ctx.strokeStyle = isDark
+          ? 'rgba(148, 163, 184, 0.1)'
+          : 'rgba(99, 102, 241, 0.16)';
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+      }
+
+      for (let i = 0; i < LAND_POINTS.length; i += 1) {
+        const rp = rotatePoint(LAND_POINTS[i], rotLon, tiltX);
+        const sx = cx + rp.x * radius;
+        const sy = cy - rp.y * radius;
+        if (rp.z > 0) {
+          const depth = 0.35 + rp.z * 0.65;
+          const dotRadius = 1.2 + rp.z * 1.45;
+          ctx.fillStyle = isDark
+            ? `rgba(103, 232, 249, ${(0.28 + depth * 0.56).toFixed(3)})`
+            : `rgba(67, 56, 202, ${(0.3 + depth * 0.5).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(sx, sy, dotRadius, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = isDark ? 'rgba(99, 102, 241, 0.12)' : 'rgba(99, 102, 241, 0.08)';
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      for (const arc of PRECOMPUTED_ARCS) {
+        const projected = arc.samples.map((s) => rotatePoint(s, rotLon, tiltX));
+        ctx.beginPath();
+        let drawing = false;
+        for (let i = 0; i < projected.length; i += 1) {
+          const p = projected[i];
+          if (p.z > -0.1) {
+            const sx = cx + p.x * radius;
+            const sy = cy - p.y * radius;
+            if (!drawing) {
+              ctx.moveTo(sx, sy);
+              drawing = true;
+            } else {
+              ctx.lineTo(sx, sy);
+            }
+          } else {
+            drawing = false;
+          }
+        }
+        ctx.strokeStyle = isDark ? 'rgba(56, 189, 248, 0.42)' : 'rgba(14, 116, 144, 0.35)';
+        ctx.lineWidth = 1.35;
+        ctx.stroke();
+
+        const packetProgress = (pulseClock * arc.speed + arc.phase) % 1;
+        const idx = Math.min(
+          projected.length - 1,
+          Math.floor(packetProgress * (projected.length - 1))
+        );
+        const packetPt = projected[idx];
+        if (packetPt.z > 0.04) {
+          const px = cx + packetPt.x * radius;
+          const py = cy - packetPt.y * radius;
+          ctx.fillStyle = isDark ? 'rgba(165, 243, 252, 0.95)' : 'rgba(14, 165, 233, 0.95)';
+          ctx.beginPath();
+          ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = isDark ? 'rgba(56, 189, 248, 0.25)' : 'rgba(14, 165, 233, 0.25)';
+          ctx.beginPath();
+          ctx.arc(px, py, 6.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      for (let i = 0; i < GLOBAL_HUBS.length; i += 1) {
+        const hub = GLOBAL_HUBS[i];
+        const rp = rotatePoint(latLonToUnit(hub.lat, hub.lon), rotLon, tiltX);
+        if (rp.z <= 0.08) continue;
+
+        const hx = cx + rp.x * radius;
+        const hy = cy - rp.y * radius;
+        const wave = (pulseClock * (hub.primary ? 1.15 : 0.75) + i * 0.27) % 1;
+        const ringRadius = (hub.primary ? 18 : 12) * wave + 3;
+        const ringAlpha = (1 - wave) * (hub.primary ? 0.78 : 0.5);
+
+        ctx.strokeStyle = hub.primary
+          ? isDark
+            ? `rgba(244, 63, 94, ${ringAlpha.toFixed(3)})`
+            : `rgba(225, 29, 72, ${ringAlpha.toFixed(3)})`
+          : isDark
+          ? `rgba(52, 211, 153, ${ringAlpha.toFixed(3)})`
+          : `rgba(5, 150, 105, ${ringAlpha.toFixed(3)})`;
+        ctx.lineWidth = hub.primary ? 1.8 : 1.2;
+        ctx.beginPath();
+        ctx.arc(hx, hy, ringRadius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = hub.primary
+          ? isDark
+            ? '#fb7185'
+            : '#e11d48'
+          : isDark
+          ? '#34d399'
+          : '#059669';
+        ctx.beginPath();
+        ctx.arc(hx, hy, hub.primary ? 3.8 : 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+      rafId = requestAnimationFrame(drawFrame);
+    };
+
+    rafId = requestAnimationFrame(drawFrame);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [theme, variant]);
+
+  return (
+    <div className="pointer-events-none fixed inset-0 overflow-hidden z-0" aria-hidden="true">
+      <canvas ref={canvasRef} className="w-full h-full block" />
+    </div>
   );
 };
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
