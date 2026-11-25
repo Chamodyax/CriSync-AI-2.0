@@ -168,37 +168,143 @@ public class ArchitectureAndWorkflowTests
 
     [Fact]
     public async Task MultiConstraintAndShortageContention_RationsScarceInventory_AndEscalatesShortfall()
-}
-
-internal static class LegacyCrisisDraftMapper
-{
-    internal static string MapUrgencyCode(int numericUrgency) => numericUrgency switch
     {
-        >= 5 => "LIFE_THREATENING",
-        4 => "CRITICAL",
-        3 => "HIGH",
-        2 => "MEDIUM",
-        _ => "LOW"
-    };
+        var (ops, db, _, _) = CreateTestHarness();
+        await DatabaseSeeder.SeedAsync(db);
 
-    internal static string BuildCompositeKey(string district, string category, string title)
-    {
-        string d = (district ?? "UNKNOWN").Trim().ToUpperInvariant();
-        string c = (category ?? "GENERAL").Trim().ToUpperInvariant();
-        string t = (title ?? string.Empty).Trim().ToUpperInvariant();
-        return $"{d}::{c}::{t.GetHashCode():X8}";
+        var logisticsUser = await db.Users.FirstAsync(u => u.Role == UserRole.LogisticsManager);
+        var req1 = Guid.Parse("66666666-6666-6666-6666-666666666601");
+        var req2 = Guid.Parse("66666666-6666-6666-6666-666666666602");
+
+        var plan = await ops.ExecuteResourceAllocationAsync(
+            logisticsUser.Id,
+            logisticsUser.FullName,
+            UserRole.LogisticsManager,
+            new List<Guid> { req1, req2 },
+            "ShortageProportionalContention");
+
+        Assert.True(plan.ShortageEncountered);
+        Assert.Equal(38, plan.TotalRequestedAcrossCases);
+        Assert.True(plan.TotalAllocatedAcrossCases > 0);
+        Assert.Equal(2, plan.Allocations.Count);
+
+        var higherUrgencyAlloc = plan.Allocations.First(a => a.AssistanceRequestId == req1);
+        var lowerUrgencyAlloc = plan.Allocations.First(a => a.AssistanceRequestId == req2);
+        Assert.True(higherUrgencyAlloc.AllocatedQuantity >= lowerUrgencyAlloc.AllocatedQuantity);
     }
 
-    internal static double EstimateBaselineWeight(int peopleCount, bool mobilitySupport, int baseUrgency)
+    [Fact]
+    public async Task IdempotentNotificationWorkflow_AvoidsDuplicateUserNotifications()
     {
-        double baseScore = Math.Clamp(baseUrgency * 16.5, 10.0, 82.5);
-        double populationBonus = Math.Min(12.0, Math.Max(0, peopleCount) * 0.45);
-        double mobilityBonus = mobilitySupport ? 5.5 : 0.0;
-        return Math.Round(Math.Min(100.0, baseScore + populationBonus + mobilityBonus), 2);
+        var (ops, db, _, _) = CreateTestHarness();
+        await DatabaseSeeder.SeedAsync(db);
+
+        var citizen = await db.Users.FirstAsync(u => u.Role == UserRole.Citizen);
+        var dto = new SendNotificationRequestDto(
+            citizen.Id,
+            citizen.PhoneNumber,
+            NotificationChannel.Sms,
+            "si",
+            "Evacuation Alert",
+            "Proceed to Ratnapura Relief Complex.",
+            "IDEMP-NOTIF-UNIQUE-999");
+
+        var firstDelivery = await ops.SendIdempotentNotificationAsync(dto);
+        var secondDelivery = await ops.SendIdempotentNotificationAsync(dto);
+
+        Assert.Equal(NotificationDeliveryStatus.Sent, firstDelivery.DeliveryStatus);
+        Assert.Equal(NotificationDeliveryStatus.SkippedDuplicate, secondDelivery.DeliveryStatus);
     }
 
-    internal static IReadOnlyList<string> SupportedDistrictCodes() => new[]
+    [Fact]
+    public async Task ExternalServiceFailureResilience_GracefullyActivatesFallbacks()
     {
-        "CMB-01", "GAM-02", "KAL-03", "RAT-04", "BAD-05", "GAL-06", "MAT-07", "KND-08"
-    };
+        var (ops, db, resilience, mapping) = CreateTestHarness();
+        await DatabaseSeeder.SeedAsync(db);
+
+        resilience.SimulateExternalAiFailure = true;
+        resilience.SimulateExternalMappingFailure = true;
+        resilience.SimulateExternalNotificationFailure = true;
+
+        var crisis = await db.CrisisEvents.FirstAsync();
+        var citizen = await db.Users.FirstAsync(u => u.Role == UserRole.Citizen);
+
+        var req = await ops.SubmitAssistanceRequestAsync(
+            citizen.Id,
+            citizen.FullName,
+            new CreateAssistanceRequestDto(
+                crisis.Id,
+                RequestCategory.SearchAndRescue,
+                UrgencyLevel.Critical,
+                "Family Trapped on Rooftop",
+                "Rising floodwaters trapped 5 people on roof in Kalutara.",
+                5,
+                1,
+                false,
+                "Kalutara North",
+                6.5854,
+                79.9607,
+                "roof.jpg",
+                "image/jpeg",
+                "en",
+                "IDEMP-RESILIENCE-1"
+            ));
+
+        var aiRec = req.AiRecommendations.First();
+        Assert.Contains("ResilientLocalHeuristicFallback", aiRec.ModelIdentifier);
+
+        var route = await mapping.CalculateRouteAsync(6.6890, 80.4020, 6.6828, 80.3992);
+        Assert.Equal("LocalHaversineFallbackEngine", route.ProviderUsed);
+
+        var notif = await ops.SendIdempotentNotificationAsync(new SendNotificationRequestDto(
+            citizen.Id,
+            citizen.Email,
+            NotificationChannel.Email,
+            "en",
+            "Status Update",
+            "Rescue boat assigned.",
+            "IDEMP-RESILIENCE-NOTIF-1"));
+
+        Assert.Equal(NotificationDeliveryStatus.FailedPendingRetry, notif.DeliveryStatus);
+        Assert.True(resilience.AiCircuitTripCount > 0);
+        Assert.True(resilience.MappingCircuitTripCount > 0);
+        Assert.True(resilience.NotificationCircuitTripCount > 0);
+    }
+
+    [Fact]
+    public async Task ShelterAllocation_PreventsOverAllocation_AndEnforcesAccessibility()
+    {
+        var (ops, db, _, _) = CreateTestHarness();
+        await DatabaseSeeder.SeedAsync(db);
+
+        var shelterAdmin = await db.Users.FirstAsync(u => u.Role == UserRole.ShelterAdmin);
+        var citizen = await db.Users.FirstAsync(u => u.Role == UserRole.Citizen);
+        var nearFullShelter = await db.Shelters.FirstAsync(s => !s.IsWheelchairAccessible);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ops.AllocateShelterAsync(
+                shelterAdmin.Id,
+                shelterAdmin.FullName,
+                UserRole.ShelterAdmin,
+                new AllocateShelterRequestDto(
+                    nearFullShelter.Id,
+                    null,
+                    citizen.Id,
+                    "Perera Family",
+                    25,
+                    false)));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ops.AllocateShelterAsync(
+                shelterAdmin.Id,
+                shelterAdmin.FullName,
+                UserRole.ShelterAdmin,
+                new AllocateShelterRequestDto(
+                    nearFullShelter.Id,
+                    null,
+                    citizen.Id,
+                    "Wheelchair Household",
+                    2,
+                    true)));
+    }
 }
