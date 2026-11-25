@@ -2145,7 +2145,7 @@ export default function App() {
               <Search className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span className="hidden lg:inline">Search</span>
               <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-zinc-300">
-                Search
+                Ctrl K
               </kbd>
             </button>
 
@@ -2967,7 +2967,7 @@ export default function App() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: 24, scale: 0.96 }}
               transition={{ duration: 0.22 }}
-                  className={`flex fixed top-20 right-4 sm:right-6 z-[90] w-[calc(100%-2rem)] sm:max-w-md rounded-2xl border text-xs sm:text-sm font-semibold backdrop-blur-2xl shadow-2xl overflow-hidden ${statusBanner.type === 'error'
+                  className={`keep-white fixed top-20 right-4 sm:right-6 z-[90] w-[calc(100%-2rem)] sm:max-w-md rounded-2xl border text-xs sm:text-sm font-semibold backdrop-blur-2xl shadow-2xl overflow-hidden ${statusBanner.type === 'error'
                   ? 'bg-rose-950/90 border-rose-500/45 text-rose-100'
                   : statusBanner.type === 'info'
                   ? 'bg-amber-950/90 border-amber-500/45 text-amber-100'
