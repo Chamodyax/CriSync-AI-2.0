@@ -352,6 +352,100 @@ public class CrisisAndRequestsController : ControllerBase
         return Ok(created);
     }
 
+    [HttpPost("requests/emergency-sos")]
+    [AllowAnonymous]
+    public async Task<ActionResult> SubmitEmergencySos([FromBody] EmergencySosRequestDto dto, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(dto.ContactPhone))
+        {
+            return BadRequest(new { message = "A contact phone number is required so emergency responders can reach you." });
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.LocationAddress) && (Math.Abs(dto.Latitude) < 0.0001 && Math.Abs(dto.Longitude) < 0.0001))
+        {
+            return BadRequest(new { message = "Please provide your location address or GPS coordinates." });
+        }
+
+        var crises = await _unitOfWork.CrisisEvents.GetAllAsync(cancellationToken);
+        var activeCrisis = crises.FirstOrDefault(c => c.IsActive) ?? crises.FirstOrDefault();
+        Guid crisisId = activeCrisis?.Id ?? Guid.Empty;
+
+        var users = await _unitOfWork.Users.GetAllAsync(cancellationToken);
+        var matchingUser = users.FirstOrDefault(u =>
+            !string.IsNullOrWhiteSpace(u.PhoneNumber) &&
+            u.PhoneNumber.Equals(dto.ContactPhone.Trim(), StringComparison.OrdinalIgnoreCase));
+        var fallbackCitizen = users.FirstOrDefault(u => u.Role == UserRole.Citizen);
+        Guid citizenUserId = matchingUser?.Id ?? fallbackCitizen?.Id ?? Guid.Empty;
+
+        string contactName = string.IsNullOrWhiteSpace(dto.ContactName) ? "Emergency Caller" : dto.ContactName.Trim();
+        string contactPhone = dto.ContactPhone.Trim();
+        double lat = Math.Abs(dto.Latitude) > 0.0001 ? dto.Latitude : (activeCrisis?.CenterLatitude ?? 6.9271);
+        double lon = Math.Abs(dto.Longitude) > 0.0001 ? dto.Longitude : (activeCrisis?.CenterLongitude ?? 79.8612);
+        string locationAddress = string.IsNullOrWhiteSpace(dto.LocationAddress)
+            ? $"GPS Distress Pin ({lat:F4}, {lon:F4})"
+            : dto.LocationAddress.Trim();
+
+        RequestCategory category = dto.EmergencyType?.Trim() switch
+        {
+            "MedicalEvacuation" or "Medical" => RequestCategory.MedicalEvacuation,
+            "Medicine" => RequestCategory.Medicine,
+            "TemporaryShelter" or "Shelter" => RequestCategory.TemporaryShelter,
+            "Food" or "FoodWater" => RequestCategory.Food,
+            "WaterAndSanitation" => RequestCategory.WaterAndSanitation,
+            _ => RequestCategory.SearchAndRescue
+        };
+
+        string emergencyLabel = category switch
+        {
+            RequestCategory.MedicalEvacuation => "Critical Medical Evacuation",
+            RequestCategory.Medicine => "Emergency Medical Supplies",
+            RequestCategory.TemporaryShelter => "Urgent Evacuation Shelter",
+            RequestCategory.Food => "Emergency Food & Water",
+            RequestCategory.WaterAndSanitation => "Clean Water & Flood Sanitation",
+            _ => "Immediate Search & Rescue"
+        };
+
+        int peopleCount = Math.Max(1, dto.PeopleCount);
+        string notes = string.IsNullOrWhiteSpace(dto.QuickNotes)
+            ? "Immediate life-safety distress beacon submitted without sign-up."
+            : dto.QuickNotes.Trim();
+
+        var createDto = new CreateAssistanceRequestDto(
+            CrisisEventId: crisisId,
+            Category: category,
+            SelfReportedUrgency: UrgencyLevel.LifeThreatening,
+            Title: $"[EMERGENCY SOS] {emergencyLabel} — {contactName} (Tel: {contactPhone})",
+            Description: $"NO-LOGIN EMERGENCY SOS BEACON | Caller: {contactName} | Direct Contact Phone: {contactPhone} | Location: {locationAddress} (GPS: {lat:F4}, {lon:F4}) | People Affected: {peopleCount} | Situation: {notes}",
+            AffectedPeopleCount: peopleCount,
+            RequestedQuantity: peopleCount,
+            RequiresAccessibilitySupport: dto.RequiresMedicalOrMobilitySupport,
+            LocationAddress: $"{locationAddress} • Contact: {contactPhone}",
+            Latitude: lat,
+            Longitude: lon,
+            SupportingEvidenceFileName: string.Empty,
+            SupportingEvidenceMimeType: string.Empty,
+            PreferredLanguage: "en",
+            IdempotencyKey: $"SOS-{contactPhone}-{DateTime.UtcNow:yyyyMMddHHmm}"
+        );
+
+        var created = await _opsService.SubmitAssistanceRequestAsync(
+            citizenUserId,
+            $"{contactName} (SOS: {contactPhone})",
+            createDto,
+            cancellationToken);
+
+        if (created.ReferenceCode.StartsWith("REQ-", StringComparison.OrdinalIgnoreCase))
+        {
+            created.ReferenceCode = "SOS-" + created.ReferenceCode.Substring(4);
+            created.FinalApprovedUrgency = UrgencyLevel.LifeThreatening;
+            created.PriorityScore = Math.Max(created.PriorityScore, 96.0);
+            await _unitOfWork.AssistanceRequests.UpdateAsync(created, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+
+        return Ok(created);
+    }
+
     [HttpPost("requests/upload-evidence")]
     [Authorize]
     public async Task<ActionResult> UploadEvidence(IFormFile? file, CancellationToken cancellationToken)

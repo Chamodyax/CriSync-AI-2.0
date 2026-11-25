@@ -1894,6 +1894,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-white/10 text-white border border-white/10">
                             {req.referenceCode}
                           </span>
+                          {(String(req.referenceCode || '').startsWith('SOS-') || String(req.title || '').includes('[EMERGENCY SOS]')) && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-rose-600 text-white keep-white shadow-sm animate-pulse">
+                              🚨 NO-LOGIN SOS BEACON
+                            </span>
+                          )}
                           <span
                             className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-0.5 rounded-full border ${isCritical
                                 ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
