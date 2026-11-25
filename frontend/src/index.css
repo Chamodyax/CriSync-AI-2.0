@@ -267,16 +267,266 @@ html.light .keep-white.keep-white .text-zinc-300 {
 }
 
 html.light .text-zinc-300 {
-  color: #1e293b !important;
+  color: #64748b !important;
 }
 
 html.light .text-zinc-400,
 html.light .text-zinc-400\/75,
 html.light .text-zinc-400\/85 {
-  color: #334155 !important;
+  color: #64748b !important;
 }
 
 html.light .text-zinc-500 {
+  color: #475569 !important;
+}
+
+html.light .rsvp-input::placeholder {
+  color: #64748b;
+}
+
+html.light .text-indigo-100,
+html.light .text-indigo-200,
+html.light .text-indigo-300,
+html.light .text-indigo-400 {
+  color: #4338ca !important;
+}
+
+html.light .text-emerald-200,
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #047857 !important;
+}
+
+html.light .text-rose-200,
+html.light .text-rose-300,
+html.light .text-rose-400 {
+  color: #be123c !important;
+}
+
+html.light .text-amber-200,
+html.light .text-amber-300,
+html.light .text-amber-400 {
+  color: #b45309 !important;
+}
+
+html.light .text-purple-300,
+html.light .text-purple-400,
+html.light .text-violet-200,
+html.light .text-violet-200\/80,
+html.light .text-violet-300,
+html.light .text-violet-400 {
+  color: #5b21b6 !important;
+}
+
+html.light .text-cyan-300,
+html.light .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+html.light .text-pink-300,
+html.light .text-pink-400 {
+  color: #be185d !important;
+}
+
+html.light button.bg-white.text-zinc-950 {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(79, 70, 229, 0.35) !important;
+}
+
+html.light button.bg-white.text-zinc-950:hover {
+  background-color: #4338ca !important;
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: 1rem;
+  z-index: 10;
+  background: #0b0f19;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+html.light .leaflet-container {
+  background: #e2e8f0;
+}
+
+html.dark .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%) saturate(110%);
+}
+
+html.light .leaflet-tile-pane {
+  filter: none;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 19, 30, 0.95);
+  backdrop-filter: blur(16px);
+  color: #f4f4f5;
+  border-radius: 0.875rem;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+html.light .leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.98);
+  color: #0f172a;
+  box-shadow: 0 15px 30px -8px rgba(15, 23, 42, 0.15);
+  border: 1px solid #cbd5e1;
+}
+
+.leaflet-popup-tip {
+  background: rgba(15, 19, 30, 0.95);
+}
+
+html.light .leaflet-popup-tip {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.leaflet-popup-content {
+  margin: 12px 16px;
+  line-height: 1.55;
+  font-size: 12px;
+  color: #e4e4e7;
+}
+
+html.light .leaflet-popup-content {
+  color: #1e293b;
+}
+
+.sidebar-scroll,
+.content-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sidebar-scroll::-webkit-scrollbar,
+.content-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track,
+.content-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb,
+.content-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+}
+
+.sidebar-scroll:hover::-webkit-scrollbar-thumb,
+.content-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.5);
+}
+
+.mobile-tabs-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.crisync-wordmark {
+  font-family: "Outfit", "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.crisync-wordmark-primary {
+  color: #ffffff;
+}
+
+html.light .crisync-wordmark-primary {
+  color: #0f172a;
+}
+
+.crisync-wordmark-accent {
+  background: linear-gradient(135deg, #22d3ee 0%, #818cf8 55%, #f43f5e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent !important;
+}
+
+html.light .crisync-wordmark-accent {
+  background: linear-gradient(135deg, #0284c7 0%, #4f46e5 60%, #e11d48 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent !important;
+}
+
+.crisync-logo-frame {
+  box-shadow: 0 8px 24px -4px rgba(6, 182, 212, 0.35), 0 0 0 1px rgba(56, 189, 248, 0.28);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.crisync-logo-frame:hover {
+  transform: scale(1.03);
+}
+
+html.light .crisync-logo-frame {
+  box-shadow: 0 8px 22px -4px rgba(79, 70, 229, 0.28), 0 0 0 1px rgba(79, 70, 229, 0.2);
+}
+
+.crisync-intro-word {
+  font-family: "Outfit", "Space Grotesk", "Plus Jakarta Sans", sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+}
+
+.crisync-fragment-sis {
+  color: #ffffff;
+  padding-right: 0.06em;
+  letter-spacing: 0em;
+}
+
+html.light .crisync-fragment-sis {
+  color: #0f172a;
+  padding-right: 0.06em;
+  letter-spacing: 0em;
+}
+
+.crisync-fusion-glow {
+  box-shadow: 0 0 60px 14px rgba(99, 102, 241, 0.35), 0 0 110px 30px rgba(34, 211, 238, 0.18);
+}
+
+@keyframes crisyncSonarPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.35);
+    opacity: 0.85;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1.35);
+    opacity: 0.18;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.55);
+    opacity: 0;
+  }
+}
+
+.crisync-map-sonar-icon {
+  background: transparent;
+  border: none;
+  pointer-events: none;
+}
+
+.crisync-sonar-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 42px;
+  height: 42px;
 
 .legacy-panel-surface {
   background: rgba(15, 23, 42, 0.78);
