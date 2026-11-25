@@ -425,4 +425,234 @@ public class ApiIntegrationAndSecurityTests : IClassFixture<CriSyncWebApplicatio
         {
             new()
             {
+                Id = nearWarehouseId,
+                Name = "Non-Cold Partial Kit",
+                WarehouseName = "Nearby Non-Cold Depot",
+                Category = RequestCategory.Medicine,
+                AvailableQuantity = 6,
+                SupportsColdChain = false,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(120),
+                WarehouseLatitude = 6.6830,
+                WarehouseLongitude = 80.3993
+            },
+            new()
+            {
+                Id = coldOptimalWarehouseId,
+                Name = "Cold Chain Insulin Kit",
+                WarehouseName = "Regional Cold Hub",
+                Category = RequestCategory.Medicine,
+                AvailableQuantity = 50,
+                SupportsColdChain = true,
+                ExpiryDateUtc = DateTime.UtcNow.AddDays(20),
+                WarehouseLatitude = 6.7000,
+                WarehouseLongitude = 80.4100
+            }
+        };
+
+        var proxPlan = new ProximityFirstStrategy().ComputeAllocationPlan(new[] { req }, resources, mapping);
+        Assert.Equal(nearWarehouseId, proxPlan.Allocations.First().SelectedResourceItemId);
+
+        var multiPlan = new MultiConstraintOptimalStrategy().ComputeAllocationPlan(new[] { req }, resources, mapping);
+        Assert.Equal(coldOptimalWarehouseId, multiPlan.Allocations.First().SelectedResourceItemId);
+    }
+
+    [Fact]
+    public async Task RealSqliteTransaction_RollsBackAtomically_OnFailure()
+    {
+        using var conn = new SqliteConnection("Data Source=:memory:");
+        await conn.OpenAsync();
+        var options = new DbContextOptionsBuilder<ReliefCoordDbContext>()
+            .UseSqlite(conn)
+            .Options;
+
+        await using var db = new ReliefCoordDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+        var uow = new EfUnitOfWork(db);
+
+        int beforeOrgs = await db.Organisations.CountAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        {
+            await uow.ExecuteInTransactionAsync(async () =>
+            {
+                await uow.Organisations.AddAsync(new Organisation
+                {
+                    Name = "Transient Rollback Org",
+                    OrganisationType = "NGO",
+                    Country = "Sri Lanka"
+                });
+                await uow.SaveChangesAsync();
+                throw new InvalidOperationException("Simulated mid-transaction failure");
+            });
+        });
+
+        db.ChangeTracker.Clear();
+        int afterOrgs = await db.Organisations.CountAsync();
+        Assert.Equal(beforeOrgs, afterOrgs);
+    }
+
+    [Fact]
+    public async Task MappingCoverageReport_AndServiceCentreReferences_ReturnGapAnalysis()
+    {
+        using var client = _factory.CreateClient();
+        await LoginAsAsync(client, "coordinator@crisync.org", "Crisync@2026");
+
+        var refs = await client.GetFromJsonAsync<List<MappingReference>>("/api/mapping/references", JsonOptions);
+        Assert.NotNull(refs);
+        Assert.True(refs!.Count >= 3);
+
+        var coverage = await client.GetFromJsonAsync<JsonElement>("/api/mapping/coverage-report", JsonOptions);
+        Assert.True(coverage.GetProperty("totalOperationalZones").GetInt32() >= 3);
+        Assert.True(coverage.GetProperty("zones").GetArrayLength() >= 3);
+    }
+
+    [Fact]
+    public async Task FailedNotificationRetrySweep_RecoversQueuedAlerts_WhenOutageClears()
+    {
+        var options = new DbContextOptionsBuilder<ReliefCoordDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
+            .Options;
+
+        await using var db = new ReliefCoordDbContext(options);
+        var uow = new EfUnitOfWork(db);
+        var resilience = new ServiceResilienceMonitor();
+        var mapping = new ResilientMappingProviderService(resilience);
+        var aiFactory = new AiProviderFactory(resilience, mapping);
+        var notifFactory = new NotificationChannelFactory(resilience);
+        var eventBus = new InMemoryDomainEventQueue();
+        var resolver = new ResourceAllocationStrategyResolver(Array.Empty<IResourceAllocationStrategy>());
+        var ops = new HumanitarianOperationsService(uow, aiFactory, mapping, notifFactory, eventBus, resolver);
+
+        resilience.SimulateExternalNotificationFailure = true;
+        var failed = await ops.SendIdempotentNotificationAsync(new SendNotificationRequestDto(
+            Guid.NewGuid(),
+            "+94-77-1112233",
+            NotificationChannel.Sms,
+            "en",
+            "Flood Warning",
+            "Evacuate immediately",
+            "RETRY-TEST-001"
+        ));
+        Assert.Equal(NotificationDeliveryStatus.FailedPendingRetry, failed.DeliveryStatus);
+
+        resilience.SimulateExternalNotificationFailure = false;
+        int recovered = await ops.RetryFailedNotificationsAsync();
+        Assert.Equal(1, recovered);
+
+        var persisted = await db.Notifications.FirstAsync(n => n.Id == failed.Id);
+        Assert.Equal(NotificationDeliveryStatus.Sent, persisted.DeliveryStatus);
+        Assert.Equal(2, persisted.RetryAttempts);
+    }
+
+    [Fact]
+    public async Task MappingEndpoints_ReverseGeocode_ResolvesNearestZone()
+    {
+        using var client = _factory.CreateClient();
+        await LoginAsAsync(client, "coordinator@crisync.org", "Crisync@2026");
+
+        var rev = await client.GetFromJsonAsync<GeocodingResultDto>(
+            "/api/mapping/reverse-geocode?latitude=6.6828&longitude=80.3992",
+            JsonOptions);
+
+        Assert.NotNull(rev);
+        Assert.Contains("Ratnapura", rev!.FormattedAddress);
+        Assert.False(string.IsNullOrWhiteSpace(rev.ProviderUsed));
+    }
+
+    [Fact]
+    public async Task QuickUnlock_SetupVerify_AndThreeStrikeLockout_EnforcedWithAuditLogs()
+    {
+        using var adminClient = _factory.CreateClient();
+        await LoginAsAsync(adminClient, "admin@crisync.org", "Admin@Crisync2026");
+
+        var initialStatus = await adminClient.GetFromJsonAsync<QuickUnlockStatusDto>("/api/auth/quick-unlock/status", JsonOptions);
+        Assert.NotNull(initialStatus);
+        Assert.False(initialStatus!.QuickUnlockEnabled);
+
+        var badPassResp = await adminClient.PostAsJsonAsync("/api/auth/quick-unlock/setup",
+            new QuickUnlockSetupRequestDto("WrongPass!", "Pin", "482910"));
+        Assert.Equal(HttpStatusCode.Unauthorized, badPassResp.StatusCode);
+
+        var setupResp = await adminClient.PostAsJsonAsync("/api/auth/quick-unlock/setup",
+            new QuickUnlockSetupRequestDto("Admin@Crisync2026", "Pin", "482910"));
+        Assert.Equal(HttpStatusCode.OK, setupResp.StatusCode);
+        var setup = await setupResp.Content.ReadFromJsonAsync<QuickUnlockSetupResponseDto>(JsonOptions);
+        Assert.NotNull(setup);
+        Assert.Equal("Pin", setup!.Mode);
+        Assert.False(string.IsNullOrWhiteSpace(setup.DeviceToken));
+
+        using var anonClient = _factory.CreateClient();
+        var verifyOk = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(setup.UserId, setup.DeviceToken, "482910"));
+        Assert.Equal(HttpStatusCode.OK, verifyOk.StatusCode);
+        var unlockedAuth = await verifyOk.Content.ReadFromJsonAsync<AuthResponseDto>(JsonOptions);
+        Assert.False(string.IsNullOrWhiteSpace(unlockedAuth!.Token));
+
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            var wrongResp = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+                new QuickUnlockVerifyRequestDto(setup.UserId, setup.DeviceToken, "000000"));
+            Assert.Equal(HttpStatusCode.Unauthorized, wrongResp.StatusCode);
+        }
+
+        var lockedResp = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/verify",
+            new QuickUnlockVerifyRequestDto(setup.UserId, setup.DeviceToken, "482910"));
+        Assert.Equal(HttpStatusCode.Unauthorized, lockedResp.StatusCode);
+
+        var auditLogs = await adminClient.GetFromJsonAsync<List<AuditEventRecord>>("/api/admin/audit-logs", JsonOptions);
+        Assert.Contains(auditLogs!, a => a.ActionName == "QuickUnlock_LockedOut");
+    }
+
+    [Fact]
+    public async Task QuickUnlock_BiometricChallengeAndWebAuthnVerify_SucceedsOnceAndBlocksReplay()
+    {
+        using var coordClient = _factory.CreateClient();
+        await LoginAsAsync(coordClient, "coordinator@crisync.org", "Crisync@2026");
+
+        var setupResp = await coordClient.PostAsJsonAsync("/api/auth/quick-unlock/setup",
+            new QuickUnlockSetupRequestDto("Crisync@2026", "Pattern", "1-2-5-8-9", "cred-test-webauthn-001"));
+        Assert.Equal(HttpStatusCode.OK, setupResp.StatusCode);
+        var setup = await setupResp.Content.ReadFromJsonAsync<QuickUnlockSetupResponseDto>(JsonOptions);
+        Assert.NotNull(setup);
+        Assert.True(setup!.HasBiometricCredential);
+
+        using var anonClient = _factory.CreateClient();
+        var challengeResp = await anonClient.PostAsJsonAsync("/api/auth/quick-unlock/challenge",
+            new QuickUnlockChallengeRequestDto(setup.UserId, setup.DeviceToken));
+        Assert.Equal(HttpStatusCode.OK, challengeResp.StatusCode);
+        var challenge = await challengeResp.Content.ReadFromJsonAsync<QuickUnlockChallengeResponseDto>(JsonOptions);
+        Assert.NotNull(challenge);
+
+        string clientJson = JsonSerializer.Serialize(new
+        {
+}
+
+internal static class LegacySessionTokenValidator
+{
+    internal static bool IsTokenWellFormed(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return false;
+        string[] segments = token.Split('.');
+        return segments.Length == 3 && segments.All(s => s.Length >= 8);
+    }
+
+    internal static string NormalizeRoleHeader(string role) => role?.Trim() switch
+    {
+        "Admin" => "SystemAdmin",
+        "Coordinator" => "EmergencyCoordinator",
+        "Logistics" => "LogisticsManager",
+        "Shelter" => "ShelterAdmin",
+        _ => string.IsNullOrWhiteSpace(role) ? "Citizen" : role.Trim()
+    };
+
+    internal static int ComputeLockoutRemainingMinutes(int failedCount)
+    {
+        if (failedCount < 3) return 0;
+        return Math.Min(60, (failedCount - 2) * 15);
+    }
+
+    internal static Dictionary<string, string> ExtractBasicAuditTags(string? ip, string? agent) => new()
+    {
+        ["sourceIp"] = string.IsNullOrWhiteSpace(ip) ? "127.0.0.1" : ip.Trim(),
+        ["clientHint"] = string.IsNullOrWhiteSpace(agent) ? "UnknownClient" : agent.Trim()[..Math.Min(64, agent.Trim().Length)]
+    };
 }
