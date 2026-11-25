@@ -1,0 +1,307 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+html.dark,
+html.dark body {
+  background-color: #0b0f17;
+  color: #f4f4f5;
+}
+
+html.light,
+html.light body {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.16) 0%, transparent 42%),
+    radial-gradient(circle at 86% 14%, rgba(6, 182, 212, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 76% 84%, rgba(244, 63, 94, 0.1) 0%, transparent 44%),
+    radial-gradient(circle at 16% 82%, rgba(16, 185, 129, 0.11) 0%, transparent 40%),
+    linear-gradient(145deg, #eef2ff 0%, #f5f8ff 46%, #ecfeff 100%);
+  background-attachment: fixed;
+  color: #0f172a;
+}
+
+.bento-glass {
+  background: rgba(17, 24, 39, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.5);
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+html.light .bento-glass {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(246, 249, 255, 0.72) 55%,
+    rgba(236, 245, 255, 0.78) 100%
+  );
+  backdrop-filter: blur(22px) saturate(145%);
+  -webkit-backdrop-filter: blur(22px) saturate(145%);
+  border: 1px solid rgba(199, 210, 254, 0.68);
+  box-shadow:
+    0 12px 34px -10px rgba(79, 70, 229, 0.12),
+    0 4px 12px -4px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.bento-glass-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bento-glass-hover:hover {
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+html.light .bento-glass-hover:hover {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(238, 242, 255, 0.86) 55%,
+    rgba(224, 242, 254, 0.86) 100%
+  );
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow:
+    0 18px 36px -10px rgba(79, 70, 229, 0.18),
+    0 4px 14px -4px rgba(6, 182, 212, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 1);
+}
+
+.rsvp-input {
+  width: 100%;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.9375rem;
+  color: #f8fafc;
+  transition: all 0.18s ease;
+}
+
+@media (min-width: 1024px) {
+  .rsvp-input {
+    font-size: 0.95rem;
+  }
+}
+
+.rsvp-input.pl-9 {
+  padding-left: 2.35rem;
+}
+
+.rsvp-input.pl-10 {
+  padding-left: 2.65rem;
+}
+
+html.light .rsvp-input {
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(148, 163, 184, 0.48);
+  color: #0f172a;
+}
+
+.rsvp-input:focus {
+  outline: none;
+  background: rgba(15, 23, 42, 0.98);
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+html.light .rsvp-input:focus {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+}
+
+.rsvp-input:-webkit-autofill,
+.rsvp-input:-webkit-autofill:hover,
+.rsvp-input:-webkit-autofill:focus,
+.rsvp-input:-webkit-autofill:active,
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important;
+  box-shadow: 0 0 0 1000px #0f172a inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+html.light .rsvp-input:-webkit-autofill,
+html.light .rsvp-input:-webkit-autofill:hover,
+html.light .rsvp-input:-webkit-autofill:focus,
+html.light .rsvp-input:-webkit-autofill:active,
+html.light input:-webkit-autofill,
+html.light input:-webkit-autofill:hover,
+html.light input:-webkit-autofill:focus,
+html.light input:-webkit-autofill:active,
+html.light textarea:-webkit-autofill,
+html.light select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  box-shadow: 0 0 0 1000px #f8fafc inset !important;
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.rsvp-input option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+html.light .rsvp-input option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+html.light .bg-\[\#07090e\],
+html.light .bg-\[\#07090e\]\/80,
+html.light .bg-\[\#0b0e17\],
+html.light .bg-\[\#090c14\],
+html.light .bg-\[\#0d111a\]\/95 {
+  background:
+    radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.16) 0%, transparent 42%),
+    radial-gradient(circle at 86% 14%, rgba(6, 182, 212, 0.16) 0%, transparent 40%),
+    radial-gradient(circle at 76% 84%, rgba(244, 63, 94, 0.1) 0%, transparent 44%),
+    radial-gradient(circle at 16% 82%, rgba(16, 185, 129, 0.11) 0%, transparent 40%),
+    linear-gradient(145deg, #eef2ff 0%, #f6f9ff 48%, #ecfeff 100%) !important;
+  background-attachment: fixed !important;
+}
+
+html.light .bg-\[\#07090e\]\/85 {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(241, 245, 255, 0.8) 50%,
+    rgba(236, 254, 255, 0.84) 100%
+  ) !important;
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border-bottom-color: rgba(165, 180, 252, 0.45) !important;
+  box-shadow: 0 8px 28px -8px rgba(79, 70, 229, 0.12);
+}
+
+html.light .bg-black\/20,
+html.light .bg-black\/25,
+html.light .bg-black\/30,
+html.light .bg-black\/40 {
+  background: linear-gradient(
+    135deg,
+    rgba(238, 242, 255, 0.58) 0%,
+    rgba(224, 242, 254, 0.44) 100%
+  ) !important;
+}
+
+html.light .bg-white\/\[0\.02\],
+html.light .bg-white\/\[0\.025\],
+html.light .bg-white\/\[0\.03\],
+html.light .bg-white\/\[0\.04\],
+html.light .bg-white\/\[0\.05\],
+html.light .bg-white\/5,
+html.light .bg-white\/10 {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(238, 242, 255, 0.54) 100%
+  ) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+html.light .hover\:bg-white\/\[0\.05\]:hover,
+html.light .hover\:bg-white\/\[0\.06\]:hover,
+html.light .hover\:bg-white\/\[0\.07\]:hover,
+html.light .hover\:bg-white\/\[0\.08\]:hover,
+html.light .hover\:bg-white\/10:hover,
+html.light .hover\:bg-white\/20:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(238, 242, 255, 0.9) 0%,
+    rgba(224, 242, 254, 0.78) 100%
+  ) !important;
+}
+
+html.light .border-white\/\[0\.05\],
+html.light .border-white\/\[0\.06\],
+html.light .border-white\/\[0\.07\],
+html.light .border-white\/\[0\.08\],
+html.light .border-white\/10,
+html.light .border-white\/15,
+html.light .border-white\/20 {
+  border-color: rgba(199, 210, 254, 0.62) !important;
+}
+
+html.light .divide-white\/\[0\.06\] > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(199, 210, 254, 0.62) !important;
+}
+
+html.light .text-white:not(.keep-white),
+html.light .text-zinc-100,
+html.light .text-zinc-200 {
+  color: #0f172a !important;
+}
+
+html.light .bg-indigo-600 .text-white,
+html.light .bg-indigo-600.text-white,
+html.light .bg-rose-600.text-white,
+html.light .bg-emerald-600.text-white,
+html.light .bg-amber-600.text-white,
+html.light .bg-purple-600.text-white,
+html.light .keep-white.keep-white,
+html.light .keep-white.keep-white *,
+html.light .keep-white.keep-white .text-white,
+html.light .keep-white.keep-white .text-zinc-100,
+html.light .keep-white.keep-white .text-zinc-200,
+html.light .keep-white.keep-white .text-zinc-300 {
+  color: #ffffff !important;
+}
+
+html.light .text-zinc-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-zinc-400,
+html.light .text-zinc-400\/75,
+html.light .text-zinc-400\/85 {
+  color: #334155 !important;
+}
+
+html.light .text-zinc-500 {
+
+.legacy-panel-surface {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.legacy-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.legacy-grid-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.legacy-table-stripe tr:nth-child(even) {
+  background-color: rgba(255, 255, 255, 0.03);
+}
