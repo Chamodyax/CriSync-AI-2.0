@@ -2145,7 +2145,7 @@ export default function App() {
               <Search className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
               <span className="hidden lg:inline">Search</span>
               <kbd className="hidden xl:inline-block px-1.5 py-0.5 text-[10px] font-mono rounded bg-white/10 text-zinc-300">
-                Ctrl K
+                Search
               </kbd>
             </button>
 
@@ -2877,37 +2877,552 @@ export default function App() {
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                     <button
                       type="button"
-      </div>
-    )}
+                      disabled={quickUnlockBusy || !quickUnlockCurrentPassword.trim()}
+                      onClick={() => void handleEnableQuickUnlock()}
+                      className="keep-white px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-extrabold inline-flex items-center gap-1.5 shadow-sm transition"
+                    >
+                      <Fingerprint className="w-3.5 h-3.5" />
+                      <span>{quickUnlockBusy ? 'Configuring...' : 'Enable Quick Unlock on This Device'}</span>
+                    </button>
+                    {quickUnlockStatus?.quickUnlockEnabled && (
+                      <button
+                        type="button"
+                        disabled={quickUnlockBusy}
+                        onClick={() => void handleRevokeQuickUnlock()}
+                        className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold transition"
+                      >
+                        Revoke Quick Unlock
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setProfileModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-zinc-300 font-bold transition"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={profileSaving || !profileFullName.trim()}
+                    className="keep-white px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold inline-flex items-center gap-1.5 shadow-md disabled:opacity-50 transition"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{profileSaving ? 'Saving...' : 'Save Profile Changes'}</span>
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <main id="main-content" className="relative z-10 max-w-[1480px] mx-auto w-full flex-1 px-3 sm:px-6 pt-4 pb-24 md:py-6 space-y-5">
+        {(authUser.accountStatus === 'Pending' || authUser.accountStatus === 'PendingPartnershipApproval') && (
+          <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs sm:text-sm text-amber-200 font-semibold flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div>
+              {authUser.accountStatus === 'Pending' ? (
+                <span>
+                  <strong className="text-white">Account Status: Pending Volunteer Verification.</strong> A Volunteer Coordinator must verify and activate your volunteer profile before full field deployment.
+                </span>
+              ) : (
+                <span>
+                  <strong className="text-white">Partnership Request Pending Approval.</strong> Your Partner Organization request is awaiting Global System Admin or Organization Admin approval.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <CommandPaletteModal
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          menuItems={menuItems.map((m) => ({
+            id: m.id,
+            label: getLocalizedTabLabel(m.id, m.label),
+            subtext: m.subtext
+          }))}
+          requests={requests}
+          shelters={sheltersData.shelters || []}
+          resources={resources}
+          theme={theme}
+          onSelectTab={(tabId) => setActiveTab(tabId)}
+          onToggleTheme={toggleTheme}
+          onOpenProfile={openProfileModal}
+          onRefresh={() => void loadAllData()}
+          onReplayIntro={triggerBrandIntro}
+        />
+
+        <AnimatePresence mode="wait">
+          {statusBanner && (
+            <motion.div
+              key={statusBanner.text}
+              initial={{ opacity: 0, x: 24, scale: 0.96 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 24, scale: 0.96 }}
+              transition={{ duration: 0.22 }}
+                  className={`flex fixed top-20 right-4 sm:right-6 z-[90] w-[calc(100%-2rem)] sm:max-w-md rounded-2xl border text-xs sm:text-sm font-semibold backdrop-blur-2xl shadow-2xl overflow-hidden ${statusBanner.type === 'error'
+                  ? 'bg-rose-950/90 border-rose-500/45 text-rose-100'
+                  : statusBanner.type === 'info'
+                  ? 'bg-amber-950/90 border-amber-500/45 text-amber-100'
+                  : 'bg-emerald-950/90 border-emerald-500/45 text-emerald-100'
+              }`}
+            >
+              <div className="flex items-center justify-between px-4 py-3 gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {statusBanner.type === 'error' ? (
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  ) : statusBanner.type === 'info' ? (
+                    <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  )}
+                  <span className="leading-snug">{statusBanner.text}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStatusBanner(null)}
+                  className="text-zinc-300 hover:text-white p-1 rounded-lg hover:bg-white/10 transition shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <motion.div
+                initial={{ width: '100%' }}
+                animate={{ width: '0%' }}
+                transition={{ duration: 5.5, ease: 'linear' }}
+                    className={`h-1 ${statusBanner.type === 'error'
+                    ? 'bg-rose-400'
+                    : statusBanner.type === 'info'
+                    ? 'bg-amber-400'
+                    : 'bg-emerald-400'
+                }`}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {loading && requests.length === 0 && crises.length === 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4" aria-hidden="true">
+            <div className="h-32 rounded-3xl crisync-skeleton border border-white/10" />
+            <div className="h-32 rounded-3xl crisync-skeleton border border-white/10" />
+            <div className="h-32 rounded-3xl crisync-skeleton border border-white/10" />
+          </div>
+        )}
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+          >
+            {activeTab === 'dashboard' && (
+              <DashboardTab
+                userRole={authUser.role}
+                metrics={metrics}
+                briefing={briefing}
+                briefingLang={briefingLang}
+                requests={requests}
+                crises={crises}
+                organisations={organisations}
+                feedbackAnalytics={feedbackAnalytics}
+                sitRepReport={sitRepReport}
+                    lastSyncedAt={lastSyncedAt}
+                    onManualRefresh={() => loadAllData()}
+                    isSyncing={loading}
+                onChangeBriefingLanguage={handleLanguageBriefingChange}
+                onMergeDuplicate={handleMergeDuplicate}
+                onUpdateRequestStatus={handleUpdateRequestStatus}
+                onCreatePublicAlert={handleCreatePublicAlert}
+                onCreateCrisisEvent={handleCreateCrisisEvent}
+                onCreateOperationalArea={handleCreateOperationalArea}
+                onRegisterCitizenOnBehalf={handleRegisterCitizenOnBehalf}
+                onInviteStaff={handleInviteStaff}
+                onSelectForAiGovernance={(req) => {
+                  setActiveTab('ai-governance');
+                  if (req.aiRecommendations?.[0]) {
+                    setSelectedRecommendation(req.aiRecommendations[0]);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'citizen' && (
+              <CitizenPortalTab
+                alerts={alerts}
+                crises={crises}
+                shelters={sheltersData.shelters || []}
+                requests={requests}
+                notifications={myNotifications}
+                household={household}
+                currentUserId={authUser.userId}
+                briefing={briefing}
+                activeLanguage={briefingLang as SupportedLanguage}
+                onChangeLanguage={handleLanguageBriefingChange}
+                onUploadEvidence={handleUploadEvidence}
+                onSubmitRequest={handleSubmitCitizenRequest}
+                onSaveHousehold={handleSaveHousehold}
+                onSubmitFeedback={handleSubmitCitizenFeedback}
+              />
+            )}
+
+            {activeTab === 'ai-governance' && (
+              <AiGovernanceTab
+                userRole={authUser.role}
+                recommendations={recommendations}
+                demandForecast={demandForecast}
+                selectedRecommendation={selectedRecommendation}
+                onSelectRecommendation={setSelectedRecommendation}
+                onSubmitGovernanceReview={handleGovernanceReviewSubmit}
+              />
+            )}
+
+            {activeTab === 'logistics' && (
+              <LogisticsTab
+                userRole={authUser.role}
+                requests={requests}
+                resources={resources}
+                dispatches={logisticsAllocationsData.dispatches || []}
+                partnerAidRequests={logisticsAllocationsData.partnerAidRequests || []}
+                organisations={organisations}
+                selectedStrategy={selectedStrategy}
+                selectedCompetingIds={selectedCompetingIds}
+                allocationPlanResult={allocationPlanResult}
+                onChangeStrategy={setSelectedStrategy}
+                onToggleCompetingRequest={(id) =>
+                  setSelectedCompetingIds((prev) =>
+                    prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+                  )
+                }
+                onRunAllocation={handleSimulateOrExecuteAllocation}
+                onAddResource={handleAddResource}
+                onReplenishResource={handleReplenishResource}
+                onMarkDispatchDelivered={handleMarkDispatchDelivered}
+                onCreatePartnerAidRequest={handleCreatePartnerAidRequest}
+                onFulfillPartnerAidRequest={handleFulfillPartnerAidRequest}
+              />
+            )}
+
+            {activeTab === 'shelters' && (
+              <SheltersTab
+                userRole={authUser.role}
+                shelters={sheltersData.shelters || []}
+                allocations={sheltersData.allocations || []}
+                requests={requests}
+                onRecommendShelters={handleRecommendShelters}
+                onCreateShelter={handleCreateShelter}
+                onRequestShelterSupplies={handleRequestShelterSupplies}
+                onCheckoutShelterAllocation={async (allocationId, householdName) => {
+                  try {
+                    await apiFetch<any>(
+                      `/shelters/allocations/${allocationId}/checkout`,
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({ dischargeNotes: `Discharged ${householdName}` })
+                      },
+                      authUser?.token
+                    );
+                    notify('success', `Checked out '${householdName}' and released shelter capacity.`);
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+                onAllocateShelter={async (payload) => {
+                  try {
+                    await apiFetch<any>(
+                      '/shelters/allocate',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          shelterId: payload.shelterId,
+                          householdName: payload.householdName,
+                          membersCount: payload.membersCount,
+                          requiresAccessibility: payload.requiresAccessibility,
+                          assistanceRequestId: payload.assistanceRequestId || null,
+                              citizenUserId: payload.citizenUserId || (authUser?.role === 'Citizen' ? authUser.userId : null)
+                        })
+                      },
+                      authUser?.token
+                    );
+                    notify('success', `Checked in ${payload.membersCount} family members to shelter.`);
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'volunteers' && (
+              <VolunteersTab
+                userRole={authUser.role}
+                currentUserId={authUser.userId}
+                volunteers={volunteersData.volunteers || []}
+                assignments={volunteersData.assignments || []}
+                    requests={requests}
+                volunteerMatches={volunteerMatches}
+                onRegisterVolunteer={handleRegisterVolunteer}
+                onVerifyActivateVolunteer={handleVerifyActivateVolunteer}
+                onUpdateMyAvailability={handleUpdateMyAvailability}
+                onRespondAssignment={handleRespondAssignment}
+                onCompleteAssignment={handleCompleteAssignment}
+                onMatchVolunteers={async (skill) => {
+                  try {
+                    const matchLat = crises[0]?.centerLatitude ?? 6.9271;
+                    const matchLon = crises[0]?.centerLongitude ?? 79.8612;
+                    const backendMatches = await apiFetch<any[]>(
+                      `/volunteers/match?skill=${encodeURIComponent(skill)}&lat=${matchLat}&lon=${matchLon}`,
+                      {},
+                      authUser?.token
+                    );
+                    setVolunteerMatches(backendMatches);
+                    notify('info', `Found ${backendMatches.length} volunteers matching '${skill}'.`);
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+                    onAssignVolunteer={async (volunteerProfileId, taskTitle, requiredSkill, assistanceRequestId) => {
+                  try {
+                    await apiFetch<any>(
+                      '/volunteers/assign',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          volunteerProfileId,
+                              assistanceRequestId: assistanceRequestId || null,
+                          taskTitle,
+                          requiredSkill
+                        })
+                      },
+                      authUser?.token
+                    );
+                    notify('success', 'Volunteer assigned to field task.');
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'donations' && (
+              <DonationsTab
+                userRole={authUser.role}
+                crises={crises}
+                campaigns={donationsData.campaigns || []}
+                donations={donationsData.donations || []}
+                transparencyReport={transparencyReport}
+                onCreateCampaign={handleCreateCampaign}
+                onRecordExpenditure={handleRecordExpenditure}
+                onRejectFlaggedDonation={handleRejectFlaggedDonation}
+                onRecordDonation={async (payload) => {
+                      const targetCampaignId = payload.campaignId;
+                  if (!targetCampaignId) {
+                        notify('error', 'Please select a specific relief campaign to credit your donation.');
+                    return;
+                  }
+                  try {
+                    const record = await apiFetch<any>(
+                      '/donations',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          campaignId: targetCampaignId,
+                          donorName: payload.donorName,
+                          donationType: payload.donationType,
+                          monetaryAmountUsd: payload.donationType === 'Monetary' ? payload.monetaryAmountUsd : 0,
+                          materialDescription: payload.donationType === 'Material' ? payload.materialDescription : '',
+                          materialQuantity: payload.donationType === 'Material' ? payload.materialQuantity : 0,
+                          allocationPurpose: payload.allocationPurpose,
+                          sandboxCardLastFour:
+                            payload.donationType === 'Monetary'
+                              ? payload.sandboxCardLastFour || '4242'
+                              : '0000'
+                        })
+                      },
+                      authUser?.token
+                    );
+                    notify(
+                      record.isFlaggedSuspicious ? 'info' : 'success',
+                      record.isFlaggedSuspicious
+                        ? `Large donation ($${record.monetaryAmountUsd}) recorded and queued for compliance approval: ${record.suspiciousReason}`
+                        : record.donationType === 'Material'
+                          ? `In-kind material donation (${record.materialQuantity} × ${record.materialDescription}) recorded. Thank you!`
+                          : `Donation of $${record.monetaryAmountUsd} recorded. Thank you!`
+                    );
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+                onApproveFlaggedDonation={async (id) => {
+                  try {
+                    await apiFetch<any>(`/donations/${id}/approve`, { method: 'POST' }, authUser?.token);
+                    notify('success', 'Large donation verified and approved.');
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+              />
+            )}
+
+            {activeTab === 'map-resilience' && (
+              <MapAndResilienceTab
+                userRole={authUser.role}
+                requests={requests}
+                shelters={sheltersData.shelters || []}
+                resources={resources}
+                operationalAreas={allOperationalAreas}
+                mappingReferences={mappingReferences}
+                coverageReport={coverageReport}
+                resilienceStatus={resilienceStatus}
+                onRetryFailedNotifications={handleRetryFailedNotifications}
+                routeCalc={routeCalc}
+                auditLogs={auditLogs}
+                adminUsers={adminUsers}
+                currentUserId={authUser.userId}
+                organisations={organisations}
+                crises={crises}
+                volunteers={volunteersData.volunteers || []}
+                campaigns={donationsData.campaigns || []}
+                adminPartnerships={adminPartnerships}
+                rolePermissions={rolePermissions}
+                systemConfig={systemConfig}
+                serviceSettings={serviceSettings}
+                onAdminCreateUser={handleAdminCreateUser}
+                onInviteStaff={handleInviteStaff}
+                onAdminUpdateUser={handleAdminUpdateUser}
+                onAdminDeleteUser={handleAdminDeleteUser}
+                onApprovePartnership={handleApprovePartnership}
+                onRejectPartnership={handleRejectPartnership}
+                onAddRolePermission={handleAddRolePermission}
+                onDeleteRolePermission={handleDeleteRolePermission}
+                onUpdateSystemConfig={handleUpdateSystemConfig}
+                onUpdateServiceSettings={handleUpdateServiceSettings}
+                onAdminUpdateCrisis={handleAdminUpdateCrisis}
+                onAdminDeleteCrisis={handleAdminDeleteCrisis}
+                onAdminUpdateShelter={handleAdminUpdateShelter}
+                onAdminDeleteShelter={handleAdminDeleteShelter}
+                onAdminUpdateResource={handleAdminUpdateResource}
+                onAdminDeleteResource={handleAdminDeleteResource}
+                onAdminDeleteRequest={handleAdminDeleteRequest}
+                onAdminDeleteVolunteer={handleAdminDeleteVolunteer}
+                onAdminDeleteCampaign={handleAdminDeleteCampaign}
+                activeLanguage={briefingLang as SupportedLanguage}
+                onChangeLanguage={handleLanguageBriefingChange}
+                    onCalculateRoute={async (customOriginLat?: number, customOriginLon?: number, customDestLat?: number, customDestLon?: number) => {
+                  try {
+                        const originLat = customOriginLat ?? resources[0]?.warehouseLatitude ?? 6.9271;
+                        const originLon = customOriginLon ?? resources[0]?.warehouseLongitude ?? 79.8612;
+                        const destLat = customDestLat ?? requests[0]?.latitude ?? crises[0]?.centerLatitude ?? 6.9319;
+                        const destLon = customDestLon ?? requests[0]?.longitude ?? crises[0]?.centerLongitude ?? 79.8478;
+                    const route = await apiFetch<any>(
+                      `/mapping/route?originLat=${originLat}&originLon=${originLon}&destLat=${destLat}&destLon=${destLon}`,
+                      {},
+                      authUser?.token
+                    );
+                    setRouteCalc(route);
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+                onToggleResilience={async (service, currentValue) => {
+                  try {
+                    const updated = await apiFetch<any>(
+                      `/admin/resilience/toggle?service=${service}&simulateFailure=${!currentValue}`,
+                      { method: 'POST' },
+                      authUser?.token
+                    );
+                    setResilienceStatus(updated);
+                    notify('info', `${service.toUpperCase()} service mode updated.`);
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+                onSendIdempotentNotification={async (idempotencyKey, languageCode, subject, messageBody) => {
+                  const selectedLang = languageCode || briefingLang || 'en';
+                  try {
+                    const rec = await apiFetch<any>(
+                      '/notifications/send',
+                      {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          recipientUserId: authUser?.userId || '22222222-2222-2222-2222-222222222201',
+                          recipientContact: '+94-77-1112233',
+                          channel: 'Sms',
+                          languageCode: selectedLang,
+                          subject,
+                          messageBody,
+                          idempotencyKey
+                        })
+                      },
+                      authUser?.token
+                    );
+                    notify(
+                      rec.deliveryStatus === 'SkippedDuplicate' ? 'info' : 'success',
+                      `SMS Test Result (${selectedLang.toUpperCase()}): ${rec.deliveryStatus} (${rec.providerResponse})`
+                    );
+                    await loadAllData();
+                  } catch (err: any) {
+                    notify('error', err.message);
+                  }
+                }}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </main>
+
+      <nav
+        aria-label="Mobile Bottom Navigation"
+        className="md:hidden fixed bottom-0 inset-x-0 z-40 bento-glass border-t border-white/10 px-2 py-1.5 pb-[max(0.45rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="flex items-center justify-around gap-1">
+          {mobileBottomTabs.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                    className={`flex-1 min-w-0 py-1.5 px-1 rounded-xl flex flex-col items-center justify-center gap-1 transition ${isActive
+                    ? 'bg-indigo-600 text-white keep-white shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                {getModuleIcon(item.id, 'w-4 h-4 shrink-0')}
+                <span className="text-[10px] font-bold truncate max-w-full leading-tight">
+                  {getLocalizedTabLabel(item.id, item.label)}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMobileNavDrawerOpen(true)}
+                className={`shrink-0 px-3 py-1.5 rounded-xl flex flex-col items-center justify-center gap-1 transition ${mobileNavDrawerOpen
+                ? 'bg-indigo-500/20 text-indigo-300'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Menu className="w-4 h-4 shrink-0" />
+            <span className="text-[10px] font-bold leading-tight">Menu</span>
+          </button>
+        </div>
+      </nav>
     </div>
+      )}
+    </>
   );
 }
-
-export function legacyFilterRequestsByText(items: any[], query: string, urgencyFilter: string) {
-  const normalized = (query || '').trim().toLowerCase();
-  return (items || []).filter((item) => {
-    const matchesUrgency = !urgencyFilter || urgencyFilter === 'ALL' || item?.urgency === urgencyFilter;
-    const hay = `${item?.title || ''} ${item?.description || ''} ${item?.locationAddress || ''}`.toLowerCase();
-    return matchesUrgency && (!normalized || hay.includes(normalized));
-  });
-}
-
-export function legacyComputePriorityRank(affectedCount: number, urgencyRank: number): number {
-  const capCount = Math.min(200, Math.max(1, affectedCount || 1));
-  const rawScore = urgencyRank * 18 + Math.log2(capCount + 1) * 4.2;
-  return Number(Math.min(100, rawScore).toFixed(1));
-}
-
-export function legacyFormatCsvCell(raw: unknown): string {
-  const text = String(raw ?? '');
-  return '"' + text.replace(/"/g, '""') + '"';
-}
-
-export const LEGACY_EXPORT_COLUMNS = [
-  'referenceCode',
-  'category',
-  'urgency',
-  'status',
-  'affectedPeopleCount',
-  'locationAddress'
-];
