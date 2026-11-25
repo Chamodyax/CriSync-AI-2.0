@@ -761,4 +761,32 @@ public class ApiIntegrationAndSecurityTests : IClassFixture<CriSyncWebApplicatio
         Assert.True(sitRep!.TotalAssistanceRequests >= 4);
         Assert.NotEmpty(sitRep.WarehouseAlerts);
     }
+
+    [Fact]
+    public async Task EmergencySos_AllowsUnauthenticatedDistressSubmission_WithMinimumContactAndLocationFields()
+    {
+        using var anonymousClient = _factory.CreateClient();
+
+        var sosPayload = new EmergencySosRequestDto(
+            ContactName: "Nimal Perera",
+            ContactPhone: "+94-77-9988776",
+            EmergencyType: "SearchAndRescue",
+            PeopleCount: 4,
+            LocationAddress: "No. 42, River Bank Road, Kalutara North",
+            Latitude: 6.5854,
+            Longitude: 79.9607,
+            QuickNotes: "Family trapped on upper floor due to rapid flood rise"
+        );
+
+        var response = await anonymousClient.PostAsJsonAsync("/api/requests/emergency-sos", sosPayload);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var created = await response.Content.ReadFromJsonAsync<AssistanceRequest>(JsonOptions);
+        Assert.NotNull(created);
+        Assert.StartsWith("SOS-", created!.ReferenceCode);
+        Assert.Equal(UrgencyLevel.LifeThreatening, created.FinalApprovedUrgency);
+        Assert.Contains("+94-77-9988776", created.Title);
+        Assert.Contains("No. 42, River Bank Road, Kalutara North", created.LocationAddress);
+        Assert.True(created.PriorityScore >= 95.0);
+    }
 }
