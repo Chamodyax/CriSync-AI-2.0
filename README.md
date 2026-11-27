@@ -2,21 +2,21 @@
 
 **Module:** SE205.3 Software Architecture — Coursework 2026  
 **Architecture Style:** Clean Modular Monolith (`ReliefCoord.Domain`, `ReliefCoord.Application`, `ReliefCoord.Infrastructure`, `ReliefCoord.Api`, `ReliefCoord.Tests`)  
-**Technology Stack:** C# ASP.NET Core 9.0 Web API + Entity Framework Core (SQL Server & SQLite Dual-Provider) + React 18 / TypeScript / Vite / Tailwind CSS + Leaflet / OpenStreetMap
+**Technology Stack:** C# ASP.NET Core 10.0 Web API + Entity Framework Core (SQL Server & SQLite Dual-Provider) + React 18 / TypeScript / Vite / Tailwind CSS + Leaflet / OpenStreetMap
 
 ---
 
 ## 1. Project Structure
 
 ```text
-HCP Project/
+CriSync-AI-2.0/
 ├── HumanitarianCrisisPlatform.slnx
 ├── backend/
 │   ├── ReliefCoord.Domain/           # Enterprise Entities (27 Tables), Enums, Domain Events
 │   ├── ReliefCoord.Application/      # Use-Case Orchestration, DTOs, Interfaces, Allocation Strategies
 │   ├── ReliefCoord.Infrastructure/   # EF Core DbContext, Repositories, AI/OSM/SMS Adapters, Async Event & Retry Worker
 │   ├── ReliefCoord.Api/              # REST Controllers, PBKDF2 Auth, JWT Security, Rate Limiting, RBAC, Swagger/OpenAPI
-│   └── ReliefCoord.Tests/            # 31 xUnit Unit & WebApplicationFactory Integration Tests
+│   └── ReliefCoord.Tests/            # 33 xUnit Unit & WebApplicationFactory Integration Tests
 ├── frontend/                         # React + TypeScript + Tailwind CSS + Leaflet Interactive Client
 ├── postman/
 │   └── CriSync_API_Collection.json   # Complete API Verification & Demo Collection (Postman v2.1)
@@ -40,11 +40,11 @@ HCP Project/
 ## 3. Quick-Start Installation & Execution
 
 ### Prerequisites
-- **.NET SDK 9.0+**
+- **.NET SDK 10.0+**
 - **Node.js 18+** and **npm**
 - **SQL Server / LocalDB** *(Optional — the API defaults to zero-configuration local SQLite `reliefcoord_platform.db` and switches to SQL Server via `appsettings.json`).*
 
-### Step 1: Run Automated Unit & Integration Tests (31 xUnit Tests)
+### Step 1: Run Automated Unit & Integration Tests (33 xUnit Tests)
 ```powershell
 dotnet test backend/ReliefCoord.Tests/ReliefCoord.Tests.csproj
 ```
